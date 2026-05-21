@@ -10,6 +10,8 @@ import { runResume } from './commands/resume';
 import { runDone } from './commands/done';
 import { runBugfix } from './commands/bugfix';
 import { runExecute } from './commands/execute';
+import { runSkillsInstall } from './commands/skills';
+import { runManifest } from './commands/manifest';
 
 const program = new Command();
 
@@ -211,6 +213,49 @@ bugfixCmd
     }
   });
 
+bugfixCmd
+  .command('reproduce <steps>')
+  .description('Record reproduction steps for the active bugfix')
+  .action(async (steps) => {
+    const projectRoot = process.cwd();
+    const result = await runBugfix(projectRoot, 'reproduce', { steps });
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
+      process.exitCode = 1;
+    }
+  });
+
+bugfixCmd
+  .command('plan')
+  .description('Generate a lightweight fix plan for the active bugfix')
+  .action(async () => {
+    const projectRoot = process.cwd();
+    const result = await runBugfix(projectRoot, 'plan');
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
+      process.exitCode = 1;
+    }
+  });
+
+bugfixCmd
+  .command('execute')
+  .description('Start TDD execution for the active bugfix')
+  .option('--test-command <cmd>', 'Test command to run', 'npm test')
+  .action(async (opts) => {
+    const projectRoot = process.cwd();
+    const result = await runBugfix(projectRoot, 'execute', { testCommand: opts.testCommand });
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
+      process.exitCode = 1;
+    }
+  });
+
 // forge execute
 const executeCmd = program
   .command('execute')
@@ -258,6 +303,70 @@ executeCmd
       console.error(result.error);
       process.exitCode = 1;
     }
+  });
+
+// forge skills
+const skillsCmd = program
+  .command('skills')
+  .description('Manage Forge skills');
+
+skillsCmd
+  .command('install')
+  .description('Install Forge skills for detected platforms')
+  .action(async () => {
+    const projectRoot = process.cwd();
+    const result = await runSkillsInstall(projectRoot);
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
+      process.exitCode = 1;
+    }
+  });
+
+// forge manifest
+const manifestCmd = program
+  .command('manifest')
+  .description('Manage platform manifests');
+
+manifestCmd
+  .command('generate')
+  .description('Generate manifests for all configured platforms')
+  .action(async () => {
+    const projectRoot = process.cwd();
+    const result = await runManifest(projectRoot, 'generate');
+    if (result.success) console.log(result.output);
+    else { console.error(result.error); process.exitCode = 1; }
+  });
+
+manifestCmd
+  .command('add <platform>')
+  .description('Add a platform manifest')
+  .action(async (platform) => {
+    const projectRoot = process.cwd();
+    const result = await runManifest(projectRoot, 'add', { platform });
+    if (result.success) console.log(result.output);
+    else { console.error(result.error); process.exitCode = 1; }
+  });
+
+manifestCmd
+  .command('remove <platform>')
+  .description('Remove a platform manifest')
+  .action(async (platform) => {
+    const projectRoot = process.cwd();
+    const result = await runManifest(projectRoot, 'remove', { platform });
+    if (result.success) console.log(result.output);
+    else { console.error(result.error); process.exitCode = 1; }
+  });
+
+manifestCmd
+  .command('list')
+  .description('List installed manifests')
+  .action(async () => {
+    const projectRoot = process.cwd();
+    const result = await runManifest(projectRoot, 'list');
+    if (result.success) console.log(result.output);
+    else { console.error(result.error); process.exitCode = 1; }
   });
 
 program.parse();
