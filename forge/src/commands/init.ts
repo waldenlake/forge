@@ -1,6 +1,7 @@
 import * as path from 'path';
 import { ensureDir, writeJson, readTextFile, writeTextFile, fileExists } from '../utils/filesystem';
 import { detectGit, detectSuperpowers, detectTestFramework } from '../utils/detect';
+import { generateManifest, Platform } from '../utils/manifest';
 import type { ConfigJson, ProgressJson } from '../types';
 
 export interface InitOptions {
@@ -101,7 +102,7 @@ export async function runInit(
 
     // 8. Generate platform manifests
     for (const platform of options.platforms) {
-      await generateManifest(projectRoot, platform);
+      await generateManifest(projectRoot, platform as Platform);
     }
 
     // 9. Initialize CLAUDE.md
@@ -127,31 +128,6 @@ Next steps:
       warnings,
     };
   }
-}
-
-async function generateManifest(projectRoot: string, platform: string): Promise<void> {
-  const manifestDir =
-    platform === 'claude'
-      ? path.join(projectRoot, '.claude-plugin')
-      : platform === 'opencode'
-        ? path.join(projectRoot, '.opencode')
-        : path.join(projectRoot, '.codex-plugin');
-
-  await ensureDir(manifestDir);
-
-  const manifest = {
-    name: 'forge',
-    version: '0.1.0',
-    skills: [
-      { name: '/start', path: '~/.agents/skills/forge/start.md' },
-      { name: '/next', path: '~/.agents/skills/forge/next.md' },
-      { name: '/resume', path: '~/.agents/skills/forge/resume.md' },
-      { name: '/done', path: '~/.agents/skills/forge/done.md' },
-      { name: '/bugfix', path: '~/.agents/skills/forge/bugfix.md' },
-    ],
-  };
-
-  await writeJson(path.join(manifestDir, 'plugin.json'), manifest);
 }
 
 async function initializeClaudeMd(projectRoot: string, platforms: string[]): Promise<void> {

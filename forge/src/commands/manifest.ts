@@ -1,4 +1,5 @@
-import { fileExists, readJson, writeJson, ensureDir } from '../utils/filesystem';
+import { fileExists, readJson, writeJson } from '../utils/filesystem';
+import { generateManifest, getManifestDir, VALID_PLATFORMS, Platform } from '../utils/manifest';
 import * as path from 'path';
 import type { ConfigJson } from '../types';
 import * as fs from 'fs/promises';
@@ -12,8 +13,6 @@ export interface ManifestResult {
 export interface ManifestOptions {
   platform?: string;
 }
-
-const VALID_PLATFORMS = ['claude', 'opencode', 'codex'] as const;
 
 export async function runManifest(projectRoot: string, subcommand: string, options?: ManifestOptions): Promise<ManifestResult> {
   switch (subcommand) {
@@ -36,33 +35,6 @@ async function getConfig(projectRoot: string): Promise<ConfigJson | null> {
   return readJson<ConfigJson>(configPath);
 }
 
-function getManifestDir(projectRoot: string, platform: string): string {
-  return platform === 'claude'
-    ? path.join(projectRoot, '.claude-plugin')
-    : platform === 'opencode'
-      ? path.join(projectRoot, '.opencode')
-      : path.join(projectRoot, '.codex-plugin');
-}
-
-async function writeManifest(projectRoot: string, platform: string): Promise<void> {
-  const manifestDir = getManifestDir(projectRoot, platform);
-  await ensureDir(manifestDir);
-
-  const manifest = {
-    name: 'forge',
-    version: '0.1.0',
-    skills: [
-      { name: '/start', path: '~/.agents/skills/forge/start.md' },
-      { name: '/next', path: '~/.agents/skills/forge/next.md' },
-      { name: '/resume', path: '~/.agents/skills/forge/resume.md' },
-      { name: '/done', path: '~/.agents/skills/forge/done.md' },
-      { name: '/bugfix', path: '~/.agents/skills/forge/bugfix.md' },
-    ],
-  };
-
-  await writeJson(path.join(manifestDir, 'plugin.json'), manifest);
-}
-
 async function runGenerate(projectRoot: string): Promise<ManifestResult> {
   const config = await getConfig(projectRoot);
   if (!config) {
@@ -71,7 +43,7 @@ async function runGenerate(projectRoot: string): Promise<ManifestResult> {
 
   for (const platform of config.platforms || []) {
     if (VALID_PLATFORMS.includes(platform as any)) {
-      await writeManifest(projectRoot, platform);
+      await generateManifest(projectRoot, platform as Platform);
     }
   }
 
@@ -84,7 +56,7 @@ async function runAdd(projectRoot: string, platform?: string): Promise<ManifestR
     return { success: false, error: `Unknown platform: ${platform}. Valid: ${VALID_PLATFORMS.join(', ')}` };
   }
 
-  await writeManifest(projectRoot, platform);
+  await generateManifest(projectRoot, platform as Platform);
 
   const config = await getConfig(projectRoot);
   if (config) {
@@ -101,7 +73,7 @@ async function runAdd(projectRoot: string, platform?: string): Promise<ManifestR
 async function runRemove(projectRoot: string, platform?: string): Promise<ManifestResult> {
   if (!platform) return { success: false, error: 'Platform is required. Usage: forge manifest remove <platform>' };
 
-  const manifestDir = getManifestDir(projectRoot, platform);
+  const manifestDir = getManifestDir(projectRoot, platform as Platform);
   if (await fileExists(manifestDir)) {
     await fs.rm(manifestDir, { recursive: true, force: true });
   }
@@ -124,7 +96,7 @@ async function runList(projectRoot: string): Promise<ManifestResult> {
 
   const installed: string[] = [];
   for (const platform of config.platforms || []) {
-    const manifestDir = getManifestDir(projectRoot, platform);
+    const manifestDir = getManifestDir(projectRoot, platform as Platform);
     const manifestPath = path.join(manifestDir, 'plugin.json');
     const exists = await fileExists(manifestPath);
     installed.push(`${platform}: ${exists ? 'installed' : 'missing'}`);
