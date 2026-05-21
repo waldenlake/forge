@@ -55,3 +55,7 @@ export async function moveDir(src: string, dest: string): Promise<void> {
     await fs.promises.rm(src, { recursive: true, force: true });
   }
 }
+
+export async function listDir(dirPath: string): Promise<string[]> {
+  return fs.promises.readdir(dirPath);
+}

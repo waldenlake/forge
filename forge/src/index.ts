@@ -8,6 +8,7 @@ import { runConfigGet, runConfigSet, runConfigList } from './commands/config';
 import { runValidate } from './commands/validate';
 import { runResume } from './commands/resume';
 import { runDone } from './commands/done';
+import { runBugfix } from './commands/bugfix';
 
 const program = new Command();
 
@@ -168,6 +169,39 @@ doneCmd
   .action(async () => {
     const projectRoot = process.cwd();
     const result = await runDone(projectRoot, 'reset');
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
+      process.exitCode = 1;
+    }
+  });
+
+// forge bugfix
+const bugfixCmd = program
+  .command('bugfix')
+  .description('Manage bugfixes with TDD regression testing flow');
+
+bugfixCmd
+  .command('init <description>')
+  .description('Initialize a new bugfix')
+  .action(async (description) => {
+    const projectRoot = process.cwd();
+    const result = await runBugfix(projectRoot, 'init', { description });
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
+      process.exitCode = 1;
+    }
+  });
+
+bugfixCmd
+  .command('list')
+  .description('List archived bugfixes')
+  .action(async () => {
+    const projectRoot = process.cwd();
+    const result = await runBugfix(projectRoot, 'list');
     if (result.success) {
       console.log(result.output);
     } else {
