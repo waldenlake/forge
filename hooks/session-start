@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# SessionStart hook for forge plugin
+set -euo pipefail
+
+# Determine plugin root directory
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Read using-forge meta-skill content
+using_forge_content=$(cat "${PLUGIN_ROOT}/skills/using-forge/SKILL.md" 2>&1 || echo "Error reading using-forge skill")
+
+# Escape string for JSON embedding using bash parameter substitution.
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+using_forge_escaped=$(escape_for_json "$using_forge_content")
+
+session_context="<IMPORTANT>\nYou have the Forge orchestration plugin installed.\n\n**Below is the full content of your 'forge:using-forge' skill — your introduction to using Forge. For all other Forge skills, use the Skill tool:**\n\n${using_forge_escaped}\n</IMPORTANT>"
+
+# Output context injection as JSON.
+# Platform detection via environment variables.
+if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+  # Cursor format
+  printf '{\n  "additional_context": "%s"\n}\n' "$session_context"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
+  # Claude Code format
+  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$session_context"
+else
+  # Copilot CLI or unknown platform — SDK standard format
+  printf '{\n  "additionalContext": "%s"\n}\n' "$session_context"
+fi
+
+exit 0

@@ -1,0 +1,19 @@
+{
+  "name": "forge",
+  "description": "AI-driven software development orchestration — from requirements to trustworthy, tested software",
+  "version": "0.1.0",
+  "author": {
+    "name": "forge contributors"
+  },
+  "homepage": "https://github.com/anthropic/forge",
+  "repository": "https://github.com/anthropic/forge",
+  "license": "MIT",
+  "keywords": [
+    "orchestration",
+    "tdd",
+    "requirements",
+    "scenarios",
+    "testing",
+    "automation"
+  ]
+}
