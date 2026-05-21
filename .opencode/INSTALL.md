@@ -2,72 +2,85 @@
 
 ## Prerequisites
 
-- [OpenCode.ai](https://opencode.ai/) installed
+- [OpenCode](https://opencode.ai/) installed
 - [Superpowers](https://github.com/obra/superpowers) plugin installed
 
 ## Installation
 
-Add forge to the `plugin` array in your `opencode.json` (global or project-level):
+OpenCode discovers skills from `~/.config/opencode/skills/<name>/SKILL.md`.
+Forge provides install scripts that copy its skills to this location.
 
-```json
-{
-  "plugin": ["forge@git+https://github.com/anthropic/forge.git"]
-}
+### Option A: Install script (recommended)
+
+Clone the repo and run the install script:
+
+```bash
+git clone https://github.com/waldenlake/forge.git
+cd forge
+
+# Unix/macOS
+bash scripts/install-opencode.sh
+
+# Windows
+scripts\install-opencode.cmd
 ```
 
-Restart OpenCode. The plugin installs through OpenCode's plugin manager and
-registers all skills.
+### Option B: Manual symlink
 
-Verify by asking: "Tell me about forge"
+If you prefer symlinks (auto-updates when you git pull):
 
-## Usage
+```bash
+# Unix/macOS
+git clone https://github.com/waldenlake/forge.git ~/forge
+ln -s ~/forge/skills/* ~/.config/opencode/skills/
 
-Use OpenCode's native `skill` tool:
+# Windows (requires admin or developer mode)
+git clone https://github.com/waldenlake/forge.git %USERPROFILE%\forge
+for %s in (using-forge start next resume done bugfix scenarios progress-tracking session-handoff) do mklink /D "%USERPROFILE%\.config\opencode\skills\%s" "%USERPROFILE%\forge\skills\%s"
+```
+
+### Option C: Project-level only
+
+Copy skills to your project's `.opencode/skills/` directory:
+
+```bash
+cp -r forge/skills/* .opencode/skills/
+```
+
+This makes forge available only in that project.
+
+## Verify
+
+Restart OpenCode, then:
 
 ```
 use skill tool to list skills
-use skill tool to load forge/start
+```
+
+You should see: `using-forge`, `start`, `next`, `resume`, `done`, `bugfix`, `scenarios`, `progress-tracking`, `session-handoff`.
+
+## Usage
+
+```
+Tell me about forge
+```
+
+Or directly invoke a skill:
+```
+use skill tool to load start
 ```
 
 ## Updating
 
-OpenCode re-fetches git-backed plugins on restart. To pin a version:
+Re-run the install script, or `git pull` if using symlinks.
 
+## Note on opencode.json plugin config
+
+Do NOT add forge to the `"plugin"` array in `opencode.json`. That mechanism is
+for JavaScript/TypeScript plugins (event hooks, custom tools). Forge is a
+pure-skill plugin — it uses SKILL.md files, not JS modules.
+
+Remove this line if you added it:
 ```json
-{
-  "plugin": ["forge@git+https://github.com/anthropic/forge.git#v0.1.0"]
-}
+"forge@git+https://github.com/waldenlake/forge.git"
 ```
-
-## Troubleshooting
-
-### Plugin not loading
-
-1. Check logs: `opencode run --print-logs "hello" 2>&1 | grep -i forge`
-2. Verify the plugin line in your `opencode.json`
-3. Make sure you're running a recent version of OpenCode
-
-### Windows install issues
-
-If OpenCode cannot install the plugin via git URL, try:
-
-```
-npm install forge@git+https://github.com/anthropic/forge.git --prefix "$HOME\.config\opencode"
-```
-
-Then use local path in `opencode.json`:
-
-```json
-{
-  "plugin": ["~/.config/opencode/node_modules/forge"]
-}
-```
-
-### Skills not found
-
-1. Use `skill` tool to list what's discovered
-2. Check that the plugin is loading (see above)
-
-## Getting Help
-
-- Report issues: https://github.com/anthropic/forge/issues
