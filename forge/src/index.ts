@@ -6,6 +6,7 @@ import { runInit } from './commands/init';
 import { runStatus } from './commands/status';
 import { runConfigGet, runConfigSet, runConfigList } from './commands/config';
 import { runValidate } from './commands/validate';
+import { runResume } from './commands/resume';
 
 const program = new Command();
 
@@ -107,6 +108,21 @@ program
     const result = await runValidate(projectRoot);
     console.log(result.output);
     if (!result.success) {
+      process.exitCode = 1;
+    }
+  });
+
+// forge resume
+program
+  .command('resume')
+  .description('Resume an interrupted feature')
+  .action(async () => {
+    const projectRoot = process.cwd();
+    const result = await runResume(projectRoot);
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
       process.exitCode = 1;
     }
   });
