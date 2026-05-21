@@ -77,10 +77,16 @@ async function runArchive(projectRoot: string, date: string): Promise<DoneResult
   await ensureDir(archiveDir);
   await ensureDir(specsDir);
 
-  const scenariosPath = path.join(featureDir, 'scenarios.md');
-  if (await fileExists(scenariosPath)) {
+  const scenariosJsonPath = path.join(featureDir, 'scenarios.json');
+  if (await fileExists(scenariosJsonPath)) {
+    const destPath = path.join(specsDir, `${featureSlug}-scenarios.json`);
+    await copyFile(scenariosJsonPath, destPath);
+  }
+
+  const scenariosMdPath = path.join(featureDir, 'scenarios.md');
+  if (await fileExists(scenariosMdPath)) {
     const destPath = path.join(specsDir, `${featureSlug}-scenarios.md`);
-    await copyFile(scenariosPath, destPath);
+    await copyFile(scenariosMdPath, destPath);
   }
 
   await moveDir(featureDir, archiveDir);

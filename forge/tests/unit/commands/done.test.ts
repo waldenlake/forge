@@ -142,6 +142,7 @@ describe('Done Command', () => {
         verification: { status: 'pending', test_mode: 'normal', last_run: null, report_path: null },
       }));
       fs.writeFileSync(path.join(testDir, 'docs', 'forge', 'changes', 'test-feature', 'proposal.md'), '# Test');
+      fs.writeFileSync(path.join(testDir, 'docs', 'forge', 'changes', 'test-feature', 'scenarios.json'), '{"scenarios": []}');
       fs.writeFileSync(path.join(testDir, 'docs', 'forge', 'changes', 'test-feature', 'scenarios.md'), '# Scenarios');
 
       const result = await runDone(testDir, 'archive', { date: '2026-05-21' });
@@ -149,6 +150,7 @@ describe('Done Command', () => {
 
       const archivedPath = path.join(testDir, 'docs', 'forge', 'changes', 'archive', '2026-05-21-test-feature');
       expect(fs.existsSync(archivedPath)).toBe(true);
+      expect(fs.existsSync(path.join(testDir, 'docs', 'forge', 'specs', 'test-feature-scenarios.json'))).toBe(true);
       expect(fs.existsSync(path.join(testDir, 'docs', 'forge', 'specs', 'test-feature-scenarios.md'))).toBe(true);
     });
   });
