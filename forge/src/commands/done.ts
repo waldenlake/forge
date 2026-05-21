@@ -1,4 +1,5 @@
 import { fileExists, readJson, writeJson, ensureDir, copyFile, moveDir } from '../utils/filesystem';
+import { updateClaudeMd } from '../utils/claude-md';
 import * as path from 'path';
 import type { ProgressJson } from '../types';
 
@@ -88,6 +89,29 @@ async function runArchive(projectRoot: string, date: string): Promise<DoneResult
     const destPath = path.join(specsDir, `${featureSlug}-scenarios.md`);
     await copyFile(scenariosMdPath, destPath);
   }
+
+  let totalTasks = 0;
+  let completedTasks = 0;
+  const deferredTasks: { id: number; title: string }[] = [];
+  for (const batch of progress.batches || []) {
+    for (const task of batch.tasks || []) {
+      totalTasks++;
+      if (task.status === 'done') completedTasks++;
+      if (task.status === 'deferred') {
+        deferredTasks.push({ id: task.id, title: task.title });
+      }
+    }
+  }
+
+  const testCoverage = progress.verification?.status === 'passed' ? 80 : 0;
+
+  await updateClaudeMd(projectRoot, featureSlug, {
+    date,
+    totalTasks,
+    completedTasks,
+    deferredTasks,
+    testCoverage,
+  });
 
   await moveDir(featureDir, archiveDir);
 

@@ -1,4 +1,4 @@
-import { fileExists, readJson, writeJson, ensureDir, writeTextFile, listDir } from '../utils/filesystem';
+import { fileExists, readJson, writeJson, ensureDir, writeTextFile, readTextFile, listDir } from '../utils/filesystem';
 import * as path from 'path';
 import type { ProgressJson } from '../types';
 
@@ -10,6 +10,8 @@ export interface BugfixResult {
 
 export interface BugfixOptions {
   description?: string;
+  steps?: string;
+  testCommand?: string;
 }
 
 export async function runBugfix(projectRoot: string, subcommand: string, options?: BugfixOptions): Promise<BugfixResult> {
@@ -18,6 +20,12 @@ export async function runBugfix(projectRoot: string, subcommand: string, options
       return runInit(projectRoot, options?.description || '');
     case 'list':
       return runList(projectRoot);
+    case 'reproduce':
+      return runReproduce(projectRoot, options?.steps || '');
+    case 'plan':
+      return runPlan(projectRoot);
+    case 'execute':
+      return runExecute(projectRoot, options?.testCommand || 'npm test');
     default:
       return { success: false, error: `Unknown subcommand: ${subcommand}` };
   }
@@ -77,4 +85,100 @@ async function runList(projectRoot: string): Promise<BugfixResult> {
 
   const output = bugfixes.map(b => `- ${b}`).join('\n');
   return { success: true, output: `Archived bugfixes:\n${output}` };
+}
+
+async function getActiveBugfix(projectRoot: string) {
+  const progressPath = path.join(projectRoot, '.forge', 'progress.json');
+  if (!(await fileExists(progressPath))) {
+    throw new Error('No progress.json found');
+  }
+
+  const progress = await readJson<ProgressJson>(progressPath);
+  if (progress.status !== 'bugfix' || !progress.feature) {
+    throw new Error('No active bugfix. Run: forge bugfix init "<description>"');
+  }
+
+  const slug = progress.feature;
+  const changeDir = path.join(projectRoot, 'docs', 'forge', 'changes', slug);
+  const bugReportPath = path.join(changeDir, 'bug-report.md');
+
+  if (!(await fileExists(bugReportPath))) {
+    throw new Error(`Bug report not found: ${bugReportPath}`);
+  }
+
+  return { slug, changeDir, bugReportPath };
+}
+
+async function runReproduce(projectRoot: string, steps: string): Promise<BugfixResult> {
+  try {
+    const { slug, bugReportPath } = await getActiveBugfix(projectRoot);
+    if (!steps) {
+      return { success: false, error: 'Reproduction steps are required. Usage: forge bugfix reproduce "1. Open login page\n2. Enter invalid password\n3. Click Login"' };
+    }
+
+    let content = await readTextFile(bugReportPath);
+    content = content.replace(
+      /<!-- To be filled during bugfix flow -->/,
+      steps,
+    );
+
+    await writeTextFile(bugReportPath, content);
+    return { success: true, output: `Reproduction steps recorded for ${slug}` };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: message };
+  }
+}
+
+async function runPlan(projectRoot: string): Promise<BugfixResult> {
+  try {
+    const { slug, bugReportPath, changeDir } = await getActiveBugfix(projectRoot);
+
+    const bugReport = await readTextFile(bugReportPath);
+
+    const fixPlanPath = path.join(changeDir, 'fix-plan.md');
+    const planContent = `# Fix Plan: ${slug}
+
+## Bug Description
+
+(From bug-report.md)
+
+## Root Cause
+
+<!-- To be determined during investigation -->
+
+## Fix Tasks
+
+### Task 1: Write regression test
+- Write test that reproduces the bug (should fail first)
+- File: tests/xxx.test.ts
+
+### Task 2: Implement fix
+- Fix the root cause
+- Verify regression test passes
+
+### Task 3: Verify no regressions
+- Run full test suite
+- Verify reproduction steps no longer trigger bug
+`;
+
+    await writeTextFile(fixPlanPath, planContent);
+    return { success: true, output: `Fix plan generated: ${fixPlanPath}` };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: message };
+  }
+}
+
+async function runExecute(projectRoot: string, testCommand: string): Promise<BugfixResult> {
+  try {
+    const { slug, changeDir } = await getActiveBugfix(projectRoot);
+    return {
+      success: true,
+      output: `Bugfix execution started for ${slug}\nTest command: ${testCommand}\n\nExecute TDD flow manually:\n1. Write regression test (should fail)\n2. Implement fix\n3. Run tests (should pass)\n4. Run: forge bugfix archive to complete`,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: message };
+  }
 }
