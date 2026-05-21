@@ -70,4 +70,36 @@ describe('forge status', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('progress.json');
   });
+
+  it('should show coverage target when config.json exists', async () => {
+    fs.mkdirSync(path.join(testDir, '.forge'), { recursive: true });
+    const progress = {
+      version: '1.0',
+      feature: 'user-auth',
+      status: 'executing',
+      phase: 'batch_execution',
+      created_at: '2026-05-21T08:00:00Z',
+      updated_at: '2026-05-21T10:30:00Z',
+      total_batches: 0,
+      current_batch: 0,
+      batches: [],
+      verification: { status: 'pending', test_mode: 'normal', last_run: null, report_path: null },
+    };
+    fs.writeFileSync(path.join(testDir, '.forge', 'progress.json'), JSON.stringify(progress));
+    const config = {
+      version: '1.0',
+      test_mode: 'normal',
+      gstack_installed: false,
+      batch_size: 5,
+      test_command: 'npm test',
+      test_framework: 'vitest',
+      test_coverage: { unit: 80, integration: 60, e2e: 'P0' },
+      project_type: 'new',
+      platforms: ['opencode'],
+    };
+    fs.writeFileSync(path.join(testDir, '.forge', 'config.json'), JSON.stringify(config));
+    const result = await runStatus(testDir);
+    expect(result.success).toBe(true);
+    expect(result.output).toContain('Coverage target: unit ≥80%, integration ≥60%');
+  });
 });
