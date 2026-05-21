@@ -39,6 +39,19 @@ export async function writeTextFile(filePath: string, content: string): Promise<
   await fs.promises.writeFile(filePath, content, 'utf-8');
 }
 
+export async function copyFile(src: string, dest: string): Promise<void> {
+  const dir = path.dirname(dest);
+  await ensureDir(dir);
+  await fs.promises.copyFile(src, dest);
+}
+
 export async function moveDir(src: string, dest: string): Promise<void> {
-  await fs.promises.rename(src, dest);
+  try {
+    await fs.promises.rename(src, dest);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code !== 'EXDEV' && code !== 'EPERM') throw e;
+    await fs.promises.cp(src, dest, { recursive: true });
+    await fs.promises.rm(src, { recursive: true, force: true });
+  }
 }

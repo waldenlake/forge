@@ -7,6 +7,7 @@ import { runStatus } from './commands/status';
 import { runConfigGet, runConfigSet, runConfigList } from './commands/config';
 import { runValidate } from './commands/validate';
 import { runResume } from './commands/resume';
+import { runDone } from './commands/done';
 
 const program = new Command();
 
@@ -119,6 +120,54 @@ program
   .action(async () => {
     const projectRoot = process.cwd();
     const result = await runResume(projectRoot);
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
+      process.exitCode = 1;
+    }
+  });
+
+// forge done
+const doneCmd = program
+  .command('done')
+  .description('Complete and archive a feature');
+
+doneCmd
+  .command('validate')
+  .description('Validate that all tasks are complete and verification passed')
+  .action(async () => {
+    const projectRoot = process.cwd();
+    const result = await runDone(projectRoot, 'validate');
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
+      process.exitCode = 1;
+    }
+  });
+
+doneCmd
+  .command('archive')
+  .description('Archive the current feature to docs/forge/changes/archive/')
+  .option('--date <date>', 'Archive date (YYYY-MM-DD)', new Date().toISOString().split('T')[0])
+  .action(async (opts) => {
+    const projectRoot = process.cwd();
+    const result = await runDone(projectRoot, 'archive', { date: opts.date });
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
+      process.exitCode = 1;
+    }
+  });
+
+doneCmd
+  .command('reset')
+  .description('Reset progress.json to idle state')
+  .action(async () => {
+    const projectRoot = process.cwd();
+    const result = await runDone(projectRoot, 'reset');
     if (result.success) {
       console.log(result.output);
     } else {
