@@ -9,6 +9,7 @@ import { runValidate } from './commands/validate';
 import { runResume } from './commands/resume';
 import { runDone } from './commands/done';
 import { runBugfix } from './commands/bugfix';
+import { runExecute } from './commands/execute';
 
 const program = new Command();
 
@@ -202,6 +203,55 @@ bugfixCmd
   .action(async () => {
     const projectRoot = process.cwd();
     const result = await runBugfix(projectRoot, 'list');
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
+      process.exitCode = 1;
+    }
+  });
+
+// forge execute
+const executeCmd = program
+  .command('execute')
+  .description('Execute tasks and show progress');
+
+executeCmd
+  .command('task')
+  .description('Execute a specific task')
+  .option('--task-id <id>', 'Task ID to execute', (val) => parseInt(val, 10))
+  .action(async (opts) => {
+    const projectRoot = process.cwd();
+    const result = await runExecute(projectRoot, 'task', { taskId: opts.taskId });
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
+      process.exitCode = 1;
+    }
+  });
+
+executeCmd
+  .command('progress')
+  .description('Show current execution progress')
+  .action(async () => {
+    const projectRoot = process.cwd();
+    const result = await runExecute(projectRoot, 'progress');
+    if (result.success) {
+      console.log(result.output);
+    } else {
+      console.error(result.error);
+      process.exitCode = 1;
+    }
+  });
+
+executeCmd
+  .command('batch')
+  .description('Execute a batch of tasks')
+  .option('--batch-id <id>', 'Batch ID to execute', (val) => parseInt(val, 10))
+  .action(async (opts) => {
+    const projectRoot = process.cwd();
+    const result = await runExecute(projectRoot, 'batch', { batchId: opts.batchId });
     if (result.success) {
       console.log(result.output);
     } else {
