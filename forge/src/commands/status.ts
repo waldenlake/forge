@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { readJson, fileExists } from '../utils/filesystem';
-import type { ProgressJson } from '../types';
+import type { ProgressJson, ConfigJson } from '../types';
 
 export interface StatusResult {
   success: boolean;
@@ -46,6 +46,12 @@ export async function runStatus(projectRoot: string): Promise<StatusResult> {
 
   lines.push('');
   lines.push(`Test mode: ${progress.verification.test_mode}`);
+
+  const configPath = path.join(projectRoot, '.forge', 'config.json');
+  if (await fileExists(configPath)) {
+    const config = await readJson<ConfigJson>(configPath);
+    lines.push(`Coverage target: unit ≥${config.test_coverage.unit}%, integration ≥${config.test_coverage.integration}%`);
+  }
 
   return { success: true, output: lines.join('\n') };
 }
