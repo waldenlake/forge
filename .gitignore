@@ -1,0 +1,25 @@
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node (legacy CLI archive)
+node_modules/
+dist/
+coverage/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Runtime project files (created by forge in user projects, not in this repo)
+.forge/
