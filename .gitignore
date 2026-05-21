@@ -23,3 +23,5 @@ __pycache__/
 
 # Runtime project files (created by forge in user projects, not in this repo)
 .forge/
+
+.docs/
