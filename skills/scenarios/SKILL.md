@@ -173,7 +173,7 @@ Write the output to `docs/forge/changes/<feature>/scenarios.json` using this exa
 | `scenarios[].when` | string | Single action statement. One trigger per scenario. |
 | `scenarios[].then` | array | One or more assertion objects. |
 | `scenarios[].then[].assertion` | string | What should be true after the action. |
-| `scenarios[].then[].type` | string | One of: `result` (return value/output), `side-effect` (something else changes), `state-change` (system state transitions), `error` (error is produced). |
+| `scenarios[].then[].type` | string | One of: `result` (return value/output), `side-effect` (something else changes), `state-change` (system state transitions), `error` (error is produced). Used downstream by writing-plans to determine test assertion style: `result` → assert return value, `side-effect` → verify external state change, `state-change` → check before/after state, `error` → expect exception or error response. |
 | `scenarios[].testTypes` | array | One or more of: `functional`, `ui`, `integration`, `performance`. |
 | `scenarios[].priority` | string | One of: `P0`, `P1`, `P2`. |
 

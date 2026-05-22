@@ -80,20 +80,30 @@ Attempt to verify Superpowers skills are accessible (try loading brainstorming s
 ### Step 3: Check GitNexus
 
 **If existing project:**
-- Check if GitNexus is available
-- Available → output: `    ✓ GitNexus`
-- Not available → output: `    ⚠ GitNexus (recommended for existing projects)`
-  - Continue anyway (non-blocking)
+
+1. Check if GitNexus CLI is available: run `gitnexus --version` or check if `gitnexus` command exists
+2. Alternatively, check if a gitnexus MCP server is configured in the project
+3. If available:
+   - Output: `    ✓ GitNexus`
+4. If NOT available:
+   - Output: `    ⚠ GitNexus (recommended for existing projects)`
+   - Note: "Install GitNexus for codebase analysis: npm install -g @gitnexus/cli"
+   - Continue (non-blocking)
 
 **If new project:**
 - Output: `    · GitNexus (not needed for new projects)`
 
 ### Step 4: Check gstack
 
-- Check if gstack is available
-- Available → output: `    ✓ gstack`
-- Not available → output: `    · gstack (optional)`
-- Always continue (never blocking)
+1. Try to detect gstack: check if gstack skills are loadable via Skill tool (try loading gstack/qa)
+2. Alternatively, check if `~/.claude/skills/gstack` or equivalent directory exists
+3. If available:
+   - Output: `    ✓ gstack`
+   - Set `gstack_installed: true` in config
+4. If NOT available:
+   - Output: `    · gstack (optional)`
+   - Set `gstack_installed: false` in config
+   - Always continue (never blocking)
 
 ### Step 5: Detect Test Framework
 
@@ -104,9 +114,16 @@ Scan project files in this order, use FIRST match:
 | `package.json` | `vitest` in devDependencies | `"vitest"`, `"npx vitest run"` |
 | `package.json` | `jest` in devDependencies | `"jest"`, `"npx jest"` |
 | `package.json` | `mocha` in devDependencies | `"mocha"`, `"npx mocha"` |
+| `package.json` | `ava` in devDependencies | `"ava"`, `"npx ava"` |
+| `package.json` | `scripts.test` exists (any value) | extract framework name from command, use `"npm test"` as command |
 | `pyproject.toml` or `pytest.ini` | exists | `"pytest"`, `"pytest"` |
+| `setup.py` or `setup.cfg` | exists (no pytest) | `"unittest"`, `"python -m unittest discover"` |
 | `go.mod` | exists | `"go"`, `"go test ./..."` |
 | `Cargo.toml` | exists | `"cargo"`, `"cargo test"` |
+| `Gemfile` | `rspec` present | `"rspec"`, `"bundle exec rspec"` |
+| `Rakefile` or `test/` dir | exists | `"minitest"`, `"bundle exec rake test"` |
+| `phpunit.xml` or `phpunit.xml.dist` | exists | `"phpunit"`, `"./vendor/bin/phpunit"` |
+| `pom.xml` or `build.gradle` | exists | `"junit"`, `"mvn test"` or `"gradle test"` |
 | None | — | `"unknown"`, `""` |
 
 Output: `    ✓ Test framework: <name>` (or `    · Test framework: not detected`)

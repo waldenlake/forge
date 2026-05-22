@@ -189,7 +189,9 @@ If not already displayed (e.g., coming from Scenario C), output:
    Provide the subagent with:
    - The full task definition from the batch file
    - The matching scenarios from `scenarios.json` (referenced by ID in the task)
-   - Impact analysis from GitNexus (if available)
+   - Impact analysis from GitNexus (if available):
+     * Run GitNexus blast-radius query for files the task will modify
+     * Include affected functions/callers in subagent context
    
    The subagent will:
    - Write tests first (from scenarios — red)
@@ -221,7 +223,13 @@ If not already displayed (e.g., coming from Scenario C), output:
 
 1. **Update batch status** in progress.json: `"done"`, add `completed_at`
 
-2. **Code review:**
+2. **Run integration tests** (if configured):
+   - Check `config.json` → `test_coverage.integration` value
+   - If > 0: run integration test suite (same test command, or dedicated integration command if configured)
+   - If integration tests fail → output failures, set batch status `"blocked"`, STOP
+   - If pass → continue
+
+3. **Code review:**
    Use the Superpowers `requesting-code-review` skill.
    
    Review scope: all commits in this batch (identified by `[forge task-N]` messages)
@@ -237,7 +245,7 @@ If not already displayed (e.g., coming from Scenario C), output:
    - Output the blocking issues to user
    - STOP. Wait for human to fix or approve.
 
-3. **Session handoff:**
+4. **Session handoff:**
    Use the Forge `session-handoff` skill.
    
    This will:

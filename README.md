@@ -66,6 +66,17 @@ See `.opencode/INSTALL.md` for detailed instructions.
 - **GitNexus** (optional) — codebase analysis for existing projects
 - **gstack** (optional, Phase 2) — enhanced testing with browser, visual QA, performance
 
+## Platform Support
+
+| Platform | Install Method | Status |
+|----------|---------------|--------|
+| Claude Code | `/plugin install` or marketplace | ✅ Full support |
+| OpenCode | `opencode.json` plugin array | ✅ Full support |
+| Windows | Git Bash required for hooks | ✅ Via run-hook.cmd polyglot |
+| macOS/Linux | Native bash | ✅ Full support |
+
+**Windows note:** The SessionStart hook requires Git Bash (installed with Git for Windows). The `run-hook.cmd` polyglot automatically locates bash. If bash is unavailable, the plugin works but without automatic context injection — load the `using-forge` skill manually.
+
 ## Philosophy
 
 - Tests from human-confirmed scenarios, not AI invention

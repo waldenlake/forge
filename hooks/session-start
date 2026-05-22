@@ -26,12 +26,16 @@ session_context="<IMPORTANT>\nYou have the Forge orchestration plugin installed.
 
 # Output context injection as JSON.
 # Platform detection via environment variables.
-if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+# Priority: CLAUDE_PLUGIN_ROOT > CURSOR_PLUGIN_ROOT > COPILOT_CLI > fallback
+# Debug (uncomment to troubleshoot):
+# echo "Platform: CLAUDE=${CLAUDE_PLUGIN_ROOT:-unset} CURSOR=${CURSOR_PLUGIN_ROOT:-unset} COPILOT=${COPILOT_CLI:-unset}" >&2
+
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
+  # Claude Code format (CLAUDE_PLUGIN_ROOT set, not Copilot)
+  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$session_context"
+elif [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
   # Cursor format
   printf '{\n  "additional_context": "%s"\n}\n' "$session_context"
-elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
-  # Claude Code format
-  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$session_context"
 else
   # Copilot CLI or unknown platform — SDK standard format
   printf '{\n  "additionalContext": "%s"\n}\n' "$session_context"
