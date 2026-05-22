@@ -132,31 +132,56 @@ Output: `    ✓ Test framework: <name>` (or `    · Test framework: not detecte
 
 Create (skip existing):
 ```
-docs/forge/specs/
-docs/forge/changes/
-docs/forge/changes/archive/
-docs/forge/decisions/
 .forge/
+.forge/specs/
 ```
+
+Note: `docs/superpowers/specs/` and `docs/superpowers/plans/` are created by
+Superpowers when needed. Forge does not pre-create them.
 
 ### Step 7: Write .forge/config.json
 
 ```json
 {
   "version": "1.0",
+  "memory_file": "<detected filename from Step 8>",
   "test_mode": "normal",
   "gstack_installed": false,
-  "batch_size": 6,
   "test_command": "<detected or empty>",
   "test_framework": "<detected or unknown>",
   "test_coverage": { "unit": 80, "integration": 60, "e2e": "P0" },
-  "project_type": "<new or existing>"
+  "project_type": "<new or existing>",
+  "guards": {
+    "batch-review": {
+      "enabled": true,
+      "every_n_tasks": 6,
+      "actions": ["spec-compliance-review"]
+    }
+  }
 }
 ```
 
-### Step 8: Append Forge Section to CLAUDE.md
+### Step 8: Detect and Initialize Memory File
 
-If `CLAUDE.md` does not exist, create it. Append:
+Detect which memory file the current platform uses:
+
+1. **Check existing files (priority order):**
+   - `CLAUDE.md` exists → use `CLAUDE.md`
+   - `AGENTS.md` exists → use `AGENTS.md`
+   - `GEMINI.md` exists → use `GEMINI.md`
+
+2. **If none exist, detect platform:**
+   - `CLAUDE_PLUGIN_ROOT` env var set → `CLAUDE.md`
+   - OpenCode detected → `AGENTS.md`
+   - Codex detected → `AGENTS.md`
+   - Gemini CLI detected → `GEMINI.md`
+   - Fallback → `AGENTS.md` (most universal)
+
+3. **Record the chosen filename** to `.forge/config.json` field `memory_file`.
+
+4. **If the memory file does not exist, create it.**
+
+5. **Append the Forge section** (do NOT overwrite existing content):
 
 ```markdown
 
@@ -194,11 +219,15 @@ Examples:
 - "user authentication with JWT" → `user-authentication-jwt`
 - "Add dark mode support" → `dark-mode-support`
 
-### 2. Create Change Directory
+### 2. Initialize Feature State
 
-Create: `docs/forge/changes/<feature-slug>/`
+Forge does NOT create a `docs/forge/changes/<slug>/` directory.
 
-If exists (re-run): warn "Directory exists. Overwriting planning artifacts." and continue.
+Documents will be written by Superpowers to:
+- `docs/superpowers/specs/YYYY-MM-DD-<feature-slug>-design.md` (brainstorming output)
+- `docs/superpowers/plans/YYYY-MM-DD-<feature-slug>.md` (writing-plans output)
+
+Forge stores its state in `.forge/` (config.json, progress.json, scenarios.json).
 
 ### 3. Write .forge/progress.json
 
@@ -207,12 +236,14 @@ If exists (re-run): warn "Directory exists. Overwriting planning artifacts." and
   "version": "1.0",
   "feature": "<feature-slug>",
   "status": "planning",
-  "phase": "brainstorming",
   "created_at": "<ISO-8601>",
   "updated_at": "<ISO-8601>",
-  "total_batches": 0,
-  "current_batch": 0,
-  "batches": [],
+  "spec_path": null,
+  "plan_path": null,
+  "total_tasks": 0,
+  "completed_tasks": 0,
+  "tasks": [],
+  "guard_history": [],
   "verification": { "status": "pending", "test_mode": "normal", "last_run": null }
 }
 ```
@@ -233,12 +264,16 @@ Output:
 - If spans >3 independent domains, suggest splitting
 - Focus on WHAT, not HOW
 
-Write result to: `docs/forge/changes/<feature-slug>/proposal.md`
+**Output:** Superpowers writes the design to:
+```
+docs/superpowers/specs/YYYY-MM-DD-<feature-slug>-design.md
+```
+
+**Capture this path** and update `.forge/progress.json` field `spec_path` with it.
 
 After brainstorming completes, output:
 ```
-    ✓ Requirements clarified
-    ✓ proposal.md written
+    ✓ Design spec written: <path>
 ```
 
 ### 5. Generate Scenarios
@@ -251,15 +286,13 @@ Output:
 
 **Use the Forge `scenarios` skill.**
 
-Reads proposal.md (+ mockup.html if exists), produces:
-- `scenarios.json` — machine-readable
-- `scenarios.md` — human-readable
+Input: the spec path captured from Step 4 (read from `progress.json.spec_path`).
+Output: `.forge/scenarios.json` (machine-readable structured scenarios).
 
 After completion, output:
 ```
     ✓ <N> scenarios generated (<P0> P0, <P1> P1, <P2> P2)
     ✓ scenarios.json written
-    ✓ scenarios.md written
 ```
 
 ### 6. Present to User
@@ -270,14 +303,15 @@ Output:
 ```
 
 Then display:
-1. Proposal summary (2-4 sentences from proposal.md)
-2. Full scenarios.md content
+1. Spec summary (2-4 sentences from the design spec at `progress.json.spec_path`)
+2. Render `.forge/scenarios.json` as readable Given/When/Then format for review
 3. Prompt:
 
 ```
     Review complete. You can:
     • /next — confirm and begin planning
-    • Edit scenarios in docs/forge/changes/<slug>/scenarios.md
+    • Edit scenarios in .forge/scenarios.json
+    • Edit spec at <progress.json.spec_path>
     • Ask me to modify specific scenarios
     • /start <new requirement> — start over
 ```
@@ -307,7 +341,7 @@ If progress.json has `status: "planning"` (any phase):
 | Empty requirement | "Please provide a requirement. Example: `/start user authentication with JWT`" |
 | Referenced file not found | "File not found: `<path>`. Check path and try again." |
 | Brainstorming produces no output | "Brainstorming didn't converge. Provide more detail." |
-| Scenario generation fails | "Failed to generate scenarios. Check proposal.md completeness." |
+| Scenario generation fails | "Failed to generate scenarios. Check the design spec for completeness." |
 | Directory creation fails | "Could not create directory. Check permissions." |
 
 ---
@@ -315,17 +349,14 @@ If progress.json has `status: "planning"` (any phase):
 ## File Artifacts Produced
 
 ```
-.forge/config.json           ← (first run only)
-.forge/progress.json         ← status: planning, phase: awaiting_confirmation
-CLAUDE.md                    ← Forge section (first run only)
-docs/forge/changes/<slug>/
-  proposal.md                ← Brainstorming output
-  scenarios.json             ← Structured scenarios
-  scenarios.md               ← Rendered scenarios
-  mockup.html                ← (optional, if UI)
+.forge/config.json                                        ← (first run only)
+.forge/progress.json                                      ← status: planning
+.forge/scenarios.json                                     ← Structured scenarios
+<memory_file>                                             ← Forge section (first run only)
+docs/superpowers/specs/YYYY-MM-DD-<slug>-design.md        ← Brainstorming output (Superpowers)
 ```
 
 ## Dependencies
 
-- **Superpowers: brainstorming** — requirement clarification
-- **Forge: scenarios** — scenario generation
+- **Superpowers: brainstorming** — requirement clarification, writes to `docs/superpowers/specs/`
+- **Forge: scenarios** — scenario generation, writes to `.forge/scenarios.json`

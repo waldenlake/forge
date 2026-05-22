@@ -5,7 +5,7 @@ description: Complete a feature — verify, archive, and clean up
 
 # /done
 
-Complete the current feature. Verify all work is finished, archive artifacts,
+Complete the current feature. Verify all work is finished, archive scenarios,
 update project knowledge.
 
 ## First: Output Command Identifier
@@ -17,6 +17,13 @@ update project knowledge.
 
 ---
 
+## Memory File
+
+All references to "memory file" mean: read `.forge/config.json` → `memory_file`
+field. Use that filename for all read/write operations.
+
+---
+
 ## Pre-Conditions
 
 1. Read `.forge/progress.json`
@@ -24,16 +31,15 @@ update project knowledge.
    - `status` = `"idle"` → ERROR: "No active feature."
    - `status` = `"planning"` → ERROR: "Feature still in planning. Use `/next` to begin execution."
 
-2. Check all batches:
-   - Every batch must have status `"done"`
-   - OR: some tasks marked `"deferred"` (acceptable)
-   - Any batch `"in_progress"`, `"pending"`, `"blocked"`, or `"failed"`:
-     → ERROR: "Cannot complete. Batch <N>: <status> (<count> tasks remaining). Finish or defer remaining tasks."
+2. Check all tasks:
+   - Every task must have status `"done"` or `"deferred"`
+   - Any task `"in_progress"`, `"pending"`, or `"failed"`:
+     → ERROR: "Cannot complete. Outstanding tasks: <list>. Finish or defer first."
 
 3. Check verification:
    - `verification.status` = `"passed"` → proceed
    - `"pending"` or `"failed"` → WARN: "Verification not passed. Running now..."
-     → Execute Scenario D from /next
+     → Execute Scenario C from /next (full verification)
      → If fails: ERROR: "Verification failed. Fix issues before `/done`."
 
 ---
@@ -43,84 +49,89 @@ update project knowledge.
 Output:
 ```
 ▸ Verification
-    ✓ All batches complete (<done>/<total> tasks)
+    ✓ All tasks complete (<done>/<total>)
     ✓ Tests passing
     ✓ Coverage: <X>% (target: <Y>%)
 ```
 
-### Step 1: Merge Scenarios to Project Specs
+### Step 1: Archive Scenarios
 
 Output:
 ```
 ▸ Archive
-    → Saving scenarios to specs...
+    → Archiving scenarios...
 ```
 
 Copy:
 ```
-docs/forge/changes/<feature>/scenarios.json
-  → docs/forge/specs/<feature>-scenarios.json
+.forge/scenarios.json → .forge/specs/<feature>-scenarios.json
 ```
 
-Output: `    ✓ Scenarios saved to specs/`
+Output: `    ✓ Scenarios archived to .forge/specs/`
 
-### Step 2: Update CLAUDE.md
+Note: Superpowers documents (`docs/superpowers/specs/<feature>-design.md`,
+`docs/superpowers/plans/<feature>.md`) are NOT moved. They remain as project
+knowledge in their original location.
 
-Remove/clear `**Current Feature**` subsection.
-Add to `**Completed Features**`:
+### Step 2: Update Memory File
+
+Open the memory file. In the `## Forge` section:
+
+1. **Remove** or clear the `**Current Feature**` subsection.
+
+2. **Add** to the `**Completed Features**` subsection (create if missing):
 
 ```markdown
+**Completed Features**
 - <feature-slug> (<YYYY-MM-DD>)
-  - Tasks: <completed>/<total> (deferred: <count if any>)
-  - Scenarios: docs/forge/specs/<feature>-scenarios.json
+  - Tasks: <completed>/<total> (deferred: <count>)
+  - Spec: <progress.json.spec_path>
+  - Plan: <progress.json.plan_path>
+  - Scenarios: .forge/specs/<feature>-scenarios.json
 ```
 
-Output: `    ✓ CLAUDE.md updated`
+Output: `    ✓ Memory file updated`
 
-### Step 3: Archive Change Directory
+### Step 3: Clean progress.json
 
-```bash
-mkdir -p docs/forge/changes/archive/
-mv docs/forge/changes/<feature>/ docs/forge/changes/archive/<YYYY-MM-DD>-<feature>/
-```
+Overwrite `.forge/progress.json` with idle state:
 
-Output: `    ✓ Feature archived`
-
-### Step 4: Clean progress.json
-
-Write:
 ```json
 {
   "version": "1.0",
   "feature": null,
   "status": "idle",
-  "phase": null,
   "created_at": null,
   "updated_at": "<ISO-8601 now>",
-  "total_batches": 0,
-  "current_batch": 0,
-  "batches": [],
+  "spec_path": null,
+  "plan_path": null,
+  "total_tasks": 0,
+  "completed_tasks": 0,
+  "tasks": [],
+  "guard_history": [],
   "verification": { "status": "pending", "test_mode": "normal", "last_run": null }
 }
 ```
 
 Output: `    ✓ progress.json cleaned`
 
-### Step 5: Git Commit
+### Step 4: Git Commit
 
 ```bash
 git add -A
 git commit -m "feat: complete feature <feature-slug> [forge done]"
 ```
 
-### Step 6: Output Completion
+### Step 5: Output Completion
 
 ```
 ▸ Complete ✓
-    Feature: <feature-slug>
-    Tasks:   <completed>/<total>
-    Deferred: <count> (if any)
-    Archived: docs/forge/changes/archive/<date>-<feature>/
+    Feature:    <feature-slug>
+    Tasks:      <completed>/<total>
+    Deferred:   <count> (if any, list them)
+    Scenarios:  .forge/specs/<feature>-scenarios.json
+    Spec:       <spec_path>
+    Plan:       <plan_path>
 
     Ready for next feature — use /start.
 ```
@@ -130,8 +141,8 @@ git commit -m "feat: complete feature <feature-slug> [forge done]"
 ## Handling Deferred Tasks
 
 If some tasks have status `"deferred"`:
-- List them in completion output with titles
-- Record in CLAUDE.md completed features entry
+- List them with their titles in the completion output
+- Record in memory file completed features entry
 
 ---
 
@@ -140,8 +151,7 @@ If some tasks have status `"deferred"`:
 | Condition | Response |
 |-----------|----------|
 | progress.json missing | "No active feature." |
-| Batch incomplete | List incomplete batches and remaining tasks |
+| Tasks incomplete | List incomplete tasks |
 | Verification failed | Auto-run; if still fails, block /done |
-| Archive dir creation fails | "Cannot create archive directory. Check permissions." |
 | Git commit fails | Warn but continue |
-| scenarios.json missing | Warn: "No scenarios file. Skipping spec merge." Continue. |
+| scenarios.json missing | Warn: "No scenarios file. Skipping archival." Continue. |

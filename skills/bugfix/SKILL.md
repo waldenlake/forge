@@ -17,12 +17,19 @@ from description to fix using TDD (regression test first).
 
 ---
 
+## Memory File
+
+All references to "memory file" mean: read `.forge/config.json` → `memory_file`
+field for the platform-appropriate filename.
+
+---
+
 ## Pre-Conditions
 
 1. `<description>` must not be empty.
    → ERROR: "Please describe the bug. Include error messages, reproduction steps, or affected behavior."
 
-2. Read `.forge/progress.json`:
+2. Read `.forge/progress.json` (create if missing with idle state):
    - `status` = `"executing"` → WARN: "Feature '<feature>' in progress. Bugfix runs separately. Continue? (yes/no)"
      - No → stop
    - `status` = `"bugfix"` → ERROR: "Another bugfix in progress. Complete it first."
@@ -36,23 +43,27 @@ from description to fix using TDD (regression test first).
 
 Generate bugfix ID from description (3-5 words, hyphenated, prefixed `bugfix-`).
 
-Create: `docs/forge/changes/bugfix-<id>/`
-
 Write `.forge/progress.json`:
+
 ```json
 {
   "version": "1.0",
   "feature": "bugfix-<id>",
   "status": "bugfix",
-  "phase": "batch_execution",
   "created_at": "<ISO-8601>",
   "updated_at": "<ISO-8601>",
-  "total_batches": 1,
-  "current_batch": 1,
-  "batches": [{ "batch": 1, "status": "in_progress", "started_at": "<ISO-8601>", "tasks": [] }],
+  "spec_path": null,
+  "plan_path": null,
+  "total_tasks": 0,
+  "completed_tasks": 0,
+  "tasks": [],
+  "guard_history": [],
   "verification": { "status": "pending", "test_mode": "normal", "last_run": null }
 }
 ```
+
+Note: bugfix doesn't use Superpowers brainstorming/writing-plans, so `spec_path`
+and `plan_path` remain null.
 
 ### Step 2: Bug Analysis
 
@@ -73,7 +84,8 @@ If description lacks concrete steps, ask:
 
 Keep asking until reproduction is concrete.
 
-Write to: `docs/forge/changes/bugfix-<id>/reproduction.md`
+(Optional) Write reproduction details to `.forge/bugfix-<id>-reproduction.md`
+for later reference.
 
 Output:
 ```
@@ -85,11 +97,19 @@ Output:
 Create lightweight plan (1-3 tasks):
 - Task 1: Write regression test (must FAIL on current code)
 - Task 2: Fix the bug (make test PASS)
-- Task 3: Verify no regressions (if fix touches shared code)
+- Task 3: Verify no regressions (only if fix touches shared code)
 
-Write to: `docs/forge/changes/bugfix-<id>/fix-plan.md`
+Update progress.json:
 
-Update progress.json tasks array.
+```json
+{
+  "total_tasks": <N>,
+  "tasks": [
+    { "id": 1, "title": "Write regression test", "status": "pending" },
+    { "id": 2, "title": "Fix the bug", "status": "pending" }
+  ]
+}
+```
 
 Output:
 ```
@@ -107,9 +127,9 @@ Output:
 
 Output: `    → Task 1: Write regression test...`
 
-1. Write test reproducing the bug
+1. Write a test reproducing the bug
 2. Run test → must FAIL (confirms bug exists)
-   - If passes → bug may be fixed already, investigate
+   - If passes → bug may be fixed, investigate
 3. Commit: `git commit -m "test: regression test for <bug> [forge task-1]"`
 
 Output: `    ✓ Task 1: regression test fails (bug confirmed)`
@@ -136,16 +156,36 @@ Output: `    → Task 3: Verify no regressions...`
 
 Output: `    ✓ Task 3: all tests passing`
 
-Use Forge `progress-tracking` skill after each task.
+Use the Forge `progress-tracking` skill after each task for consistent
+commit and state management. (Bugfix typically doesn't need Guards since
+it's only 1-3 tasks, but the `progress-tracking` skill will check anyway.)
 
-### Step 5: Archive
+### Step 5: Update Memory File
 
-1. Set batch status `"done"`
-2. Move: `docs/forge/changes/bugfix-<id>/` → `docs/forge/changes/archive/<YYYY-MM-DD>-bugfix-<id>/`
-3. Clean progress.json → `{ "status": "idle" }`
-4. Commit: `git commit -m "chore: archive bugfix-<id> [forge done]"`
+Add to memory file's `**Completed Features**` section:
 
-### Step 6: Output Completion
+```markdown
+- bugfix-<id> (<YYYY-MM-DD>)
+  - Bug: <short description>
+  - Fix: <one-line change description>
+  - Regression test: <test file path>
+```
+
+### Step 6: Clean progress.json
+
+Reset to idle:
+```json
+{ "status": "idle", ... }
+```
+
+### Step 7: Git Commit
+
+```bash
+git add -A
+git commit -m "chore: complete bugfix-<id> [forge done]"
+```
+
+### Step 8: Output Completion
 
 ```
 ▸ Complete ✓
@@ -153,7 +193,6 @@ Use Forge `progress-tracking` skill after each task.
     Test:   <test file path>
     Fix:    <one-line change description>
     Tests:  ✓ all passing
-    Archived: docs/forge/changes/archive/<date>-bugfix-<id>/
 ```
 
 ---

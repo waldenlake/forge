@@ -1,6 +1,6 @@
 ---
 name: progress-tracking
-description: Standard operations after each task completes
+description: Standard operations after each task completes, with Guard triggering
 ---
 
 # Progress Tracking
@@ -10,7 +10,8 @@ Internal skill. Called by `next/SKILL.md` after each subagent task completes.
 ## Purpose
 
 Ensure consistent post-task operations: verify tests pass, commit changes,
-update progress state. Keep orchestrator context minimal.
+update progress state, **trigger Guards if conditions met**. Keep orchestrator
+context minimal.
 
 ---
 
@@ -19,7 +20,7 @@ update progress state. Keep orchestrator context minimal.
 ### Step 1: Determine Test Command
 
 1. Read `.forge/config.json` → `test_command` field
-2. If empty or field missing, auto-detect:
+2. If empty or missing, auto-detect:
 
 | File | Condition | Command |
 |------|-----------|---------|
@@ -39,48 +40,39 @@ Run the test command.
 
 **If tests FAIL:**
 
-Auto-fix loop (maximum 3 rounds):
+Auto-fix loop (max 3 rounds):
 
-1. Read test output. Identify which tests fail and why.
-2. Fix the implementation code.
-   - Do NOT modify tests unless the test itself is clearly wrong
-     (e.g., tests a behavior not in the scenario).
-   - Focus on the minimal change to make tests pass.
-3. Re-run the test command.
-4. If tests pass → break loop, proceed to Step 3.
-5. If tests still fail → increment round counter, repeat from 1.
+1. Read test output. Identify failing tests and why.
+2. Fix the implementation code (do NOT modify tests unless clearly wrong).
+3. Re-run tests.
+4. If pass → break loop, proceed to Step 3.
+5. If still fail → increment round counter, repeat.
 
 **After 3 rounds still failing:**
 
 1. Update `.forge/progress.json`:
-   - Set current task: `"status": "failed"`
-   - Set current batch: `"status": "failed"`
-2. Output to orchestrator:
-   > "Task <id> failed after 3 fix attempts.
-   > Failing tests: <list of test names>
-   > Error: <brief error summary>
-   > Human intervention needed."
-3. **STOP.** Do not proceed to the next task.
+   - Current task: `"status": "failed"`
+2. Output:
+   ```
+   Task <id> failed after 3 fix attempts.
+   Failing tests: <list>
+   Error: <brief summary>
+   Human intervention needed.
+   ```
+3. **STOP.** Do not proceed to Step 3.
 
 ### Step 3: Git Commit
-
-Stage all changes and commit:
 
 ```bash
 git add -A
 git commit -m "feat: <task-title> [forge task-<id>]"
 ```
 
-Where:
-- `<task-title>` is the task title from progress.json or the batch file
-- `<id>` is the task ID number
-
-Capture the resulting commit SHA (from `git rev-parse HEAD`).
+Capture the resulting commit SHA.
 
 ### Step 4: Update progress.json
 
-Read `.forge/progress.json`. Find the current task entry in the current batch.
-Update it:
+Update the task entry in `progress.json.tasks`:
 
 ```json
 {
@@ -88,16 +80,68 @@ Update it:
   "title": "<task-title>",
   "status": "done",
   "commit": "<commit-sha>",
-  "completed_at": "<ISO-8601 now>"
+  "completed_at": "<ISO-8601>"
 }
 ```
 
-Also update the root `updated_at` field to current timestamp.
+Increment `progress.json.completed_tasks`.
+Update root `updated_at` field.
 
-### Step 5: Context Discipline
+### Step 5: Check Guards
 
-**CRITICAL:** After this skill completes, the orchestrator (the session
-running /next) MUST NOT retain detailed results in conversation history.
+Read `.forge/config.json` → `guards` object.
+
+For each enabled guard, evaluate trigger condition:
+
+| Guard Type | Trigger |
+|------------|---------|
+| `batch-review` | `completed_tasks % every_n_tasks == 0` (default every 6) |
+
+If triggered, run the Guard's `actions` list (see Guard Actions below).
+
+Record result in `progress.json.guard_history`:
+
+```json
+{
+  "id": "guard-<sequence>",
+  "type": "<guard-type>",
+  "triggered_at": "<ISO-8601>",
+  "task_range": [<first task id since last guard>, <last task id (current)>],
+  "status": "passed" | "failed" | "skipped",
+  "notes": "<brief result>"
+}
+```
+
+#### Guard Actions
+
+**`spec-compliance-review`:**
+
+1. Use the Superpowers `requesting-code-review` skill
+2. Scope: commits since last guard (or feature start if first guard)
+3. Review against:
+   - `.forge/scenarios.json` (spec compliance — do tasks match the scenarios they reference?)
+   - Code quality (DRY, YAGNI, naming, structure)
+4. Pass criteria: no blocking issues found
+5. Fail criteria: any blocking issue
+
+**`session-handoff-suggestion`:** (optional, listed in guard `actions`)
+
+1. Use the Forge `session-handoff` skill
+2. Updates memory_file with current progress
+3. Suggests opening a new session (does not force)
+
+**Guard failure handling:**
+
+If a Guard fails:
+- Set its `status` to `"failed"` with `notes` describing the issue
+- Do NOT proceed to next task
+- Output the failure details to the user
+- Return control to `/next` which will stop execution
+
+### Step 6: Context Discipline
+
+**CRITICAL:** After this skill completes, the orchestrator (the session running
+/next) MUST NOT retain detailed results in conversation history.
 
 The orchestrator records ONLY:
 ```
@@ -113,7 +157,7 @@ All details are preserved in:
 
 Do NOT:
 - Summarize what the task implemented
-- Paste code snippets back to the orchestrator
+- Paste code snippets back to orchestrator
 - Describe test results in detail
 - List files that were changed
 
@@ -123,8 +167,9 @@ Do NOT:
 
 | Condition | Action |
 |-----------|--------|
-| Test command not found and no detection possible | Warn and skip tests. Commit anyway. |
-| Git commit fails (nothing to commit) | Warn: "No changes to commit for task <id>." Mark done anyway. |
+| Test command not found | Warn and skip tests. Commit anyway. |
+| Git commit fails (nothing to commit) | Warn: "No changes to commit for task <id>." Mark done. |
 | Git not initialized | ERROR: "Git not initialized. Cannot track progress." STOP. |
-| progress.json missing | ERROR: "progress.json not found. Cannot update progress." STOP. |
+| progress.json missing | ERROR: "progress.json not found." STOP. |
 | Task not found in progress.json | ERROR: "Task <id> not found in progress.json." STOP. |
+| Guard action skill not available | Skip that guard, log `status: "skipped"`. Continue. |

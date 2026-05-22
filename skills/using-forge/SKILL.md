@@ -28,22 +28,40 @@ Check for relevant Forge skills when:
 | `/done` | Complete feature: verify → archive |
 | `/bugfix <description>` | Lightweight bug fix with regression test |
 
+## CRITICAL: Forge Overrides Superpowers Workflow
+
+When Forge is active (`.forge/progress.json` exists with `status` ≠ `"idle"`),
+all feature development MUST go through Forge commands.
+
+DO NOT directly invoke Superpowers brainstorming, writing-plans, or
+subagent-driven-development for feature work — use `/start`, `/next` instead.
+Forge will call Superpowers internally with proper state tracking.
+
+Direct Superpowers usage is allowed ONLY for:
+- Tasks outside Forge's scope (e.g., one-off refactors not tracked as features)
+- When `.forge/progress.json` does not exist (no active Forge project)
+- When `status` = `"idle"` (between features)
+
 ## How It Works
 
-1. **You describe what to build** → Forge clarifies via brainstorming
+1. **You describe what to build** → Forge calls Superpowers brainstorming
 2. **Scenarios generated** → You confirm they match your intent
-3. **Plan created** → Tasks with TDD steps, batched for context management
-4. **Execution** → Subagents implement each task (test first, then code)
-5. **Verification** → Tests run, code reviewed, report generated
-6. **Archive** → Feature documented, scenarios preserved as project knowledge
+3. **Plan created** → Forge calls Superpowers writing-plans
+4. **Execution** → Subagents implement each task (TDD)
+5. **Guards** → Quality checks run at configured intervals
+6. **Verification** → Tests run, code reviewed, report generated
+7. **Archive** → Scenarios preserved as project knowledge
 
 ## State
 
 Forge stores all state in files (never conversation history):
-- `.forge/config.json` — Project configuration
+- `.forge/config.json` — Project configuration (includes `memory_file` field)
 - `.forge/progress.json` — Current feature progress
-- `CLAUDE.md` — Cross-session memory (Forge section)
-- `docs/forge/changes/<feature>/` — Feature artifacts
+- `.forge/scenarios.json` — Current feature's structured scenarios
+- `<memory_file>` — Cross-session memory (CLAUDE.md / AGENTS.md / GEMINI.md, depending on platform)
+
+Documents (design specs, implementation plans) live in `docs/superpowers/` —
+managed by Superpowers, not Forge.
 
 ## Checking Status
 
@@ -70,6 +88,6 @@ Forge optionally uses:
 
 - Tests come from human-confirmed scenarios, not AI invention
 - All state in files, context never overflows
-- Batch isolation: ≤6 tasks per batch, new session between batches
+- Quality Guards trigger at configured intervals (replaces fixed batch boundaries)
 - No guessing: ask humans for anything uncertain
 - Reuse existing tools (Superpowers, GitNexus), only orchestrate

@@ -17,6 +17,13 @@ confirms with user, then continues execution.
 
 ---
 
+## Memory File
+
+All references to "memory file" mean: read `.forge/config.json` → `memory_file`
+field for the platform-appropriate filename (CLAUDE.md / AGENTS.md / GEMINI.md).
+
+---
+
 ## Pre-Conditions
 
 1. Read `.forge/progress.json`
@@ -29,87 +36,85 @@ confirms with user, then continues execution.
 
 ### Step 1: Read State
 
-From `.forge/progress.json` extract:
+From `.forge/progress.json`:
 - `feature` — feature slug
 - `status` — current status
-- `phase` — current phase
-- `current_batch` — which batch we're on
-- `total_batches` — total batches
-- For each batch: status and task list with statuses
+- `tasks` — flat array with statuses
+- `completed_tasks` / `total_tasks` — progress counts
+- `guard_history` — guard results
 - `verification` — verification state
 
-From `CLAUDE.md` (## Forge section):
-- Read the Current Feature info for cross-reference
+From the memory file (`## Forge` section):
+- Cross-reference Current Feature info
 
 ### Step 2: Output Location Summary
 
-Output:
 ```
 ▸ Status Recovery
     ✓ Feature: <feature-slug>
-    ✓ Progress: batch <current>/<total>, task <done>/<all>
+    ✓ Progress: <completed_tasks>/<total_tasks> tasks done
 ```
 
-Then for each batch:
+Then list task statuses:
 ```
-    Batch 1: ✓ done (<N> tasks)
-    Batch 2: → in_progress
-      - Task 7:  ✓ done
-      - Task 8:  → in_progress (interrupted)
-      - Task 9:  · pending
-      - Task 10: · pending
-    Batch 3: · pending (<N> tasks)
+    Tasks:
+      Task 1:  ✓ done
+      Task 2:  ✓ done
+      ...
+      Task 7:  → in_progress (interrupted)
+      Task 8:  · pending
+      ...
 ```
 
-Then:
+Then guard history (if any):
 ```
-    → Next: continue Task <id> in Batch <N>
+    Guards:
+      guard-1 (batch-review, tasks 1-6): ✓ passed
+```
+
+Then next action:
+```
+    → Next: continue Task <id> "<title>"
 ```
 
 ### Step 3: Consistency Check
 
 For each task marked `"done"` in progress.json:
-1. Look for a git commit whose message contains `[forge task-<id>]`
+1. Look for git commit message containing `[forge task-<id>]`
 2. If commit found → consistent
-3. If commit NOT found → inconsistency detected
+3. If commit NOT found → inconsistency
 
 If inconsistencies found, output:
 ```
-    ⚠ Inconsistencies:
+    ⚠ Inconsistencies detected:
       - Task <id> "<title>": done but no commit found
-```
 
-Then ask:
-```
   Options:
     1. Continue anyway (trust progress.json)
     2. Re-execute inconsistent tasks
     3. Cancel
 ```
 
-Wait for user's choice:
-- "1" or "Continue" → proceed, ignoring inconsistencies
-- "2" or "Re-execute" → set those tasks back to "pending", then proceed
+Wait for user choice:
+- "1" or "Continue" → proceed
+- "2" or "Re-execute" → set those tasks back to `"pending"`, then proceed
 - "3" or "Cancel" → stop
-
-If NO inconsistencies, skip this step.
 
 ### Step 4: Confirm with User
 
 ```
-  Resume from this point? (yes / no / show-task)
+  Resume from Task <id>? (yes / no / show-task)
 ```
 
 - "yes" → continue execution
 - "no" → stop
-- "show-task" → display full task definition from batch file, then ask again
+- "show-task" → display the task definition from the plan file at `progress.json.plan_path`, then ask again
 
 ### Step 5: Continue Execution
 
-Once confirmed, proceed as if `/next` was called:
-- Current batch has pending tasks → execute them (Scenario B of next)
-- Current batch done, more remain → start next batch (Scenario C)
-- All batches done → verification (Scenario D)
+Once confirmed, behave as if `/next` was called:
+- Tasks have pending → execute (Scenario B of /next)
+- All tasks done → run verification (Scenario C of /next)
 - `verification_complete` → prompt for `/done`
 - `bugfix` → continue bugfix execution
 
@@ -117,26 +122,26 @@ Once confirmed, proceed as if `/next` was called:
 
 ## Special Cases
 
-### Resuming a Blocked Batch
-
-If current batch status = `"blocked"`:
-1. Show blocking issues from `review-batch-<N>.md`
-2. Ask: "Have the blocking issues been resolved? (yes / no)"
-3. Yes → set batch to `"in_progress"`, re-run code review
-4. No → "Fix issues above, then run `/resume` again."
-
 ### Resuming After Verification Failure
 
 If `verification.status` = `"failed"`:
-1. Output: `    ⚠ Last verification failed. See: <report_path>`
+1. Output: `    ⚠ Last verification failed.`
 2. Ask: "Re-run verification? (yes / no)"
-3. Yes → run Scenario D of /next
+3. Yes → run Scenario C of /next
 4. No → stop
 
 ### Resuming With status = "planning"
 
-- `phase` = `"brainstorming"` → "Feature mid-brainstorm. Run `/start <requirement>` to restart."
-- `phase` = `"awaiting_confirmation"` → "Design ready. Review `scenarios.md`, then `/next` to proceed."
+- No `spec_path` set → "Feature mid-brainstorm. Run `/start <requirement>` to restart."
+- No `plan_path` set, scenarios.json exists → "Design ready. Run `/next` to begin planning."
+
+### Resuming a Feature with Failed Guard
+
+If the latest entry in `guard_history` has `status: "failed"`:
+1. Show the guard failure details
+2. Ask: "Have the issues been resolved? (yes / no)"
+3. Yes → re-run the guard, if passes → continue
+4. No → "Fix the issues, then run `/resume` again."
 
 ---
 
@@ -144,10 +149,10 @@ If `verification.status` = `"failed"`:
 
 | Condition | Response |
 |-----------|----------|
-| progress.json missing | "No active feature. Use `/start` to begin." |
+| progress.json missing | "No active feature. Use `/start`." |
 | progress.json parse error | "progress.json corrupted. Attempting recovery from git log..." |
-| CLAUDE.md missing | Warn but continue (progress.json is source of truth) |
-| Batch file missing | "Batch file not found. Check `docs/forge/changes/<feature>/plans/`" |
+| memory file missing | Warn but continue (progress.json is source of truth) |
+| Plan file missing | "Plan file not found at <plan_path>. Cannot show task details." |
 | Git not available | Warn: "Cannot verify consistency. Proceeding with progress.json." |
 
 ---
@@ -157,7 +162,7 @@ If `verification.status` = `"failed"`:
 If progress.json cannot be parsed:
 1. Scan git log for `[forge task-N]` commits
 2. Rebuild task completion list
-3. Read CLAUDE.md for feature/batch info
+3. Read memory file for feature info
 4. Write reconstructed progress.json
 5. Warn: "Rebuilt from git history. May be incomplete."
 6. Show state, ask user to confirm before continuing

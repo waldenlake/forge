@@ -1,6 +1,6 @@
 ---
 name: next
-description: Confirm design and execute, or continue after batch completion
+description: Confirm design and execute, or continue execution
 ---
 
 # /next
@@ -18,12 +18,11 @@ Advance the Forge workflow. Behavior depends on current state.
 
 Read `.forge/progress.json`. Determine which scenario applies:
 
-| Status | Phase / Condition | Action |
-|--------|-------------------|--------|
-| `planning` | `awaiting_confirmation` | → **Scenario A**: Plan + begin execution |
-| `executing` | current batch has pending/in_progress tasks | → **Scenario B**: Execute current batch |
-| `executing` | current batch done, more batches remain | → **Scenario C**: Start next batch |
-| `executing` | all batches done | → **Scenario D**: Full verification |
+| Status | Condition | Action |
+|--------|-----------|--------|
+| `planning` | scenarios.json exists, no plan_path | → **Scenario A**: Plan + begin execution |
+| `executing` | tasks have `pending` or `in_progress` | → **Scenario B**: Execute remaining tasks |
+| `executing` | all tasks `done` or `deferred` | → **Scenario C**: Full verification |
 | `idle` | — | → ERROR: "No active feature. Use `/start` first." |
 | `bugfix` | — | → ERROR: "Bugfix in progress. Complete it or cancel." |
 
@@ -31,16 +30,16 @@ Read `.forge/progress.json`. Determine which scenario applies:
 
 ## Scenario A: Planning + First Execution
 
-**Trigger:** `status = "planning"`, `phase = "awaiting_confirmation"`
+**Trigger:** `status = "planning"` and `.forge/scenarios.json` exists.
 
 ### Step 1: GitNexus Analysis (existing projects only)
 
 1. Read `.forge/config.json` → check `project_type`
 2. If `"existing"`:
    - Check if GitNexus is available
-   - If available → run dependency analysis, save output for use in planning
-   - If NOT available → warn: "Proceeding without dependency analysis (GitNexus not available)"
-3. If `"new"` → skip this step entirely
+   - Available → run dependency analysis, save output for use in planning
+   - NOT available → warn: "Proceeding without dependency analysis (GitNexus not available)"
+3. If `"new"` → skip
 
 ### Step 2: Generate Implementation Plan
 
@@ -53,222 +52,126 @@ Output:
 **Use the Superpowers `writing-plans` skill.**
 
 Provide as input:
-- `docs/forge/changes/<feature>/proposal.md`
-- `docs/forge/changes/<feature>/scenarios.json`
-- GitNexus dependency information (if available from Step 1)
+- The spec path from `progress.json.spec_path`
+- `.forge/scenarios.json` (every task should reference one or more scenario IDs)
 
 Requirements for the plan:
-- Every task MUST reference one or more scenarios from scenarios.json by ID
-- Every task MUST include TDD steps derived from those scenarios
-- Tasks should be 2-5 minutes of work each
-- Tasks should be implementable by someone with zero project context
+- Each task includes TDD steps derived from referenced scenarios
+- 2-5 minutes per task
+- Implementable with zero project context
 
-Output location: `docs/forge/changes/<feature>/plans/full-plan.md`
-
-After plan written, output:
+Superpowers writes the plan to:
 ```
-    ✓ full-plan.md written (<N> tasks)
+docs/superpowers/plans/YYYY-MM-DD-<feature>.md
 ```
 
-### Step 3: Batch Cutting
+After plan is written:
+- Capture the plan path
+- Update `progress.json.plan_path` with this path
+- Output: `    ✓ plan written: <path>`
+
+### Step 3: Extract Tasks from Plan
 
 Output:
 ```
-    → Cutting batches...
+    → Extracting tasks...
 ```
 
-Read `full-plan.md` and extract all tasks with their dependencies.
+Read the Superpowers plan file. For each task in the plan, extract:
+- ID (sequential number, 1-indexed)
+- Title (from the task heading)
 
-**Algorithm:**
-
-1. Parse all tasks. For each task identify:
-   - Task ID (sequential number)
-   - Title
-   - Dependencies (which other tasks must complete first)
-
-2. Build dependency graph.
-
-3. Topological sort:
-   - Tasks with no dependencies come first
-   - Tasks that depend on others come after their dependencies
-
-4. Read batch size from `.forge/config.json` → `batch_size` (default: 6)
-
-5. Group into batches:
-   - Walk the sorted list
-   - Add tasks to current batch until batch is full OR next task depends on a task not yet in a completed batch
-   - Start new batch when needed
-   - Rule: if Task A depends on Task B, B must be in an earlier (lower-numbered) batch
-
-6. Write each batch to a separate file:
-   ```
-   docs/forge/changes/<feature>/plans/batch-1.md
-   docs/forge/changes/<feature>/plans/batch-2.md
-   ...
-   ```
-   Each batch file contains the FULL task definitions (copied from full-plan.md, not references).
-
-After batch cutting, output:
-```
-    ✓ <N> batches created
-```
-
-### Step 4: Update progress.json
+Populate `progress.json.tasks` with the flat list. Do NOT split into batches—
+quality checks happen via Guards (see Step 5).
 
 ```json
 {
-  "version": "1.0",
-  "feature": "<feature-slug>",
+  "tasks": [
+    { "id": 1, "title": "Set up project structure", "status": "pending" },
+    { "id": 2, "title": "Add user model", "status": "pending" }
+  ]
+}
+```
+
+Output: `    ✓ <N> tasks extracted`
+
+### Step 4: Update progress.json
+
+Set:
+```json
+{
   "status": "executing",
-  "phase": "batch_execution",
-  "updated_at": "<ISO-8601 now>",
-  "total_batches": <N>,
-  "current_batch": 1,
-  "batches": [
-    {
-      "batch": 1,
-      "status": "in_progress",
-      "started_at": "<ISO-8601 now>",
-      "tasks": [
-        { "id": 1, "title": "<from plan>", "status": "pending" },
-        { "id": 2, "title": "<from plan>", "status": "pending" },
-        ...
-      ]
-    },
-    {
-      "batch": 2,
-      "status": "pending",
-      "tasks": [
-        { "id": 7, "title": "<from plan>", "status": "pending" },
-        ...
-      ]
-    }
-  ],
-  "verification": {
-    "status": "pending",
-    "test_mode": "<from config.json>",
-    "last_run": null
-  }
+  "updated_at": "<ISO-8601>",
+  "plan_path": "<from Step 2>",
+  "total_tasks": <N>,
+  "completed_tasks": 0
 }
 ```
 
 ### Step 5: Begin Execution
 
-Output:
-```
-▸ Phase 5 · Execution (Batch 1/<N>)
-```
-
-Proceed immediately to **Scenario B** (execute current batch).
+Proceed immediately to **Scenario B**.
 
 ---
 
-## Scenario B: Execute Current Batch
+## Scenario B: Execute Tasks
 
-**Trigger:** `status = "executing"`, current batch has tasks with status `"pending"` or `"in_progress"`
+**Trigger:** `status = "executing"` and tasks have `pending` or `in_progress` status.
 
-If not already displayed (e.g., coming from Scenario C), output:
+Output (if not already shown):
 ```
-▸ Phase 5 · Execution (Batch <current>/<total>)
+▸ Phase 5 · Execution
 ```
 
-### For each pending task (in order):
+For each pending task in order:
 
-1. **Read task definition** from `batch-<N>.md`
+1. **Read task definition** from the plan file at `progress.json.plan_path`
 
-2. **Output progress:**
+2. **Update progress.json:** Set task status to `"in_progress"`, add `started_at`
+
+3. **Output progress:**
    ```
        → Task <id>: <title>...
    ```
 
-3. **Update progress.json:** Set task status to `"in_progress"`, add `started_at`
-
-3. **Dispatch subagent:**
+4. **Dispatch subagent:**
    Use the Superpowers `subagent-driven-development` skill.
    
-   Provide the subagent with:
-   - The full task definition from the batch file
-   - The matching scenarios from `scenarios.json` (referenced by ID in the task)
-   - Impact analysis from GitNexus (if available):
-     * Run GitNexus blast-radius query for files the task will modify
-     * Include affected functions/callers in subagent context
-   
-   The subagent will:
-   - Write tests first (from scenarios — red)
-   - Implement to pass tests (green)
-   - Refactor
-   - Run verification steps from the task
+   Provide:
+   - The full task definition (from plan file)
+   - Matching scenarios from `.forge/scenarios.json` (referenced by ID in the task)
+   - Impact analysis from GitNexus (if available)
 
-4. **Run progress-tracking:**
-   Use the Forge `progress-tracking` skill.
-   
-   This will:
-   - Run the test suite
-   - Handle test failures (auto-fix up to 3 rounds)
-   - Git commit on success
-   - Update progress.json task entry
+5. **Run progress-tracking:**
+   Use the Forge `progress-tracking` skill. It will:
+   - Run tests
+   - Auto-fix failures (max 3 rounds)
+   - Git commit on success: `feat: <task-title> [forge task-<id>]`
+   - Update task status to `"done"` in progress.json
+   - Increment `completed_tasks`
+   - **Trigger Guards** if conditions met (see config.json `guards`)
 
-5. **Context discipline:**
-   After progress-tracking completes, output:
+6. **Output result:**
    ```
        ✓ Task <id>: done
    ```
-   Record ONLY "Task N: done" in conversation. Do NOT retain task details.
-
-6. **If task failed:** Output `    ✗ Task <id>: failed (<reason>)` and STOP. Do not proceed to next task. Report to user.
-
-7. **Continue** to next pending task.
-
-### After all tasks in batch complete:
-
-1. **Update batch status** in progress.json: `"done"`, add `completed_at`
-
-2. **Run integration tests** (if configured):
-   - Check `config.json` → `test_coverage.integration` value
-   - If > 0: run integration test suite (same test command, or dedicated integration command if configured)
-   - If integration tests fail → output failures, set batch status `"blocked"`, STOP
-   - If pass → continue
-
-3. **Code review:**
-   Use the Superpowers `requesting-code-review` skill.
    
-   Review scope: all commits in this batch (identified by `[forge task-N]` messages)
-   
-   Two stages:
-   - Spec compliance: do changes match the scenarios?
-   - Code quality: DRY, YAGNI, naming, structure
-   
-   Write review to: `docs/forge/changes/<feature>/review-batch-<N>.md`
-   
-   If blocking issues found:
-   - Set batch status to `"blocked"` in progress.json
-   - Output the blocking issues to user
-   - STOP. Wait for human to fix or approve.
+   Or on failure: `✗ Task <id>: failed (<reason>)` and STOP.
 
-4. **Session handoff:**
-   Use the Forge `session-handoff` skill.
-   
-   This will:
-   - Update CLAUDE.md with progress
-   - Generate recovery instructions
-   - Prompt user to open new session or continue with /next
+7. **Context discipline:** Record ONLY "Task <id>: done" in conversation. Do NOT retain task details.
+
+8. **Guard handling:**
+   If progress-tracking triggered a Guard:
+   - Guard passed → continue to next task
+   - Guard failed → STOP. Output guard failure details. Wait for user.
+
+After all tasks `done` → automatically proceed to **Scenario C** (verification).
 
 ---
 
-## Scenario C: Start Next Batch
+## Scenario C: Full Verification
 
-**Trigger:** `status = "executing"`, current batch status = `"done"`, more batches remain
-
-1. Increment `current_batch` in progress.json
-2. Set the next batch status to `"in_progress"`, add `started_at`
-3. Update `updated_at`
-4. Proceed to **Scenario B**
-
----
-
-## Scenario D: Full Verification
-
-**Trigger:** `status = "executing"`, ALL batches have status `"done"`
+**Trigger:** `status = "executing"`, all tasks have status `"done"` or `"deferred"`.
 
 Output:
 ```
@@ -293,25 +196,9 @@ Detect and run build command:
 
 ### Step 3: Coverage Check
 
-Compare coverage against `.forge/config.json` → `test_coverage` targets:
-- `unit`: minimum unit test coverage percentage
-- `integration`: minimum integration test coverage
-- `e2e`: which priority scenarios must pass
+Compare coverage against `.forge/config.json` → `test_coverage` targets.
 
-### Step 4: Write Test Report
-
-Write to: `docs/forge/changes/<feature>/test-report.html`
-
-Include:
-- Test pass/fail summary
-- Coverage percentage
-- Build result
-- Failed tests (if any) with error messages
-- Timestamp
-
-(For Phase 1, a simple markdown-formatted report is acceptable. HTML template can be enhanced later.)
-
-### Step 5: Update progress.json
+### Step 4: Update progress.json
 
 ```json
 {
@@ -319,16 +206,15 @@ Include:
   "verification": {
     "status": "passed" | "failed",
     "test_mode": "normal",
-    "last_run": "<ISO-8601 now>",
-    "report_path": "docs/forge/changes/<feature>/test-report.html"
+    "last_run": "<ISO-8601>",
+    "report_path": "<optional path to report file>"
   }
 }
 ```
 
-### Step 6: Report to User
+### Step 5: Report to User
 
 **If passed:**
-Output:
 ```
     ✓ Tests passing
     ✓ Build OK
@@ -339,7 +225,6 @@ Output:
 ```
 
 **If failed:**
-Output:
 ```
     ✗ Tests failed (<N> failures)
     Coverage: <X>% (target: <Y>%)
@@ -347,7 +232,7 @@ Output:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚠ Verification failed.
 
-  See report: docs/forge/changes/<feature>/test-report.html
+  Failed tests: <list>
   Fix failing tests and run /next again.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
@@ -359,19 +244,17 @@ Output:
 | Condition | Response |
 |-----------|----------|
 | progress.json missing | "No active feature. Use `/start` first." |
-| Status/phase combination not recognized | "Unexpected state: status=<X>, phase=<Y>. Check `.forge/progress.json` for corruption." |
-| writing-plans produces no output | "Plan generation failed. Check proposal.md and scenarios.json for completeness." |
-| Batch cutting finds circular dependencies | "Circular dependency detected between tasks. Fix the plan and retry." |
-| All tasks fail in a batch | "All tasks in batch <N> failed. Human intervention required." |
+| Status not recognized | "Unexpected state. Check `.forge/progress.json` for corruption." |
+| writing-plans produces no output | "Plan generation failed. Check spec and scenarios.json for completeness." |
+| Plan file cannot be parsed for tasks | "Could not extract tasks from plan. Verify the plan file uses standard task structure." |
+| All tasks fail | "All tasks failed. Human intervention required." |
 
 ---
 
 ## Dependencies
 
-This skill uses:
-- **Superpowers: writing-plans** — for implementation plan generation
-- **Superpowers: subagent-driven-development** — for task execution via subagents
-- **Superpowers: requesting-code-review** — for post-batch code review
-- **Forge: progress-tracking** — for post-task state management
-- **Forge: session-handoff** — for cross-session recovery preparation
-- **GitNexus** (optional) — for dependency analysis and blast radius
+- **Superpowers: writing-plans** — implementation plan generation, writes to `docs/superpowers/plans/`
+- **Superpowers: subagent-driven-development** — per-task execution
+- **Superpowers: requesting-code-review** — used by `batch-review` Guard
+- **Forge: progress-tracking** — post-task state management + Guard trigger
+- **GitNexus** (optional) — dependency analysis and blast radius
