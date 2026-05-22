@@ -10,16 +10,17 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Simple frontmatter extraction
-const extractAndStripFrontmatter = (content) => {
-  const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-  if (!match) return { frontmatter: {}, content };
-  const body = match[2];
-  return { frontmatter: {}, content: body };
+// Strip YAML frontmatter from SKILL.md content, return body only
+const stripFrontmatter = (content) => {
+  const match = content.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
+  return match ? match[1] : content;
 };
 
 // Module-level cache for bootstrap content
 let _bootstrapCache = undefined;
+
+// Stable marker for guard logic (won't break if SKILL.md content changes)
+const FORGE_BOOTSTRAP_MARKER = '<!-- forge-bootstrap-injected -->';
 
 export const ForgePlugin = async ({ client, directory }) => {
   const forgeSkillsDir = path.resolve(__dirname, '../../skills');
@@ -35,7 +36,7 @@ export const ForgePlugin = async ({ client, directory }) => {
     }
 
     const fullContent = fs.readFileSync(skillPath, 'utf8');
-    const { content } = extractAndStripFrontmatter(fullContent);
+    const content = stripFrontmatter(fullContent);
 
     const toolMapping = `
 
@@ -48,7 +49,8 @@ When skills reference tools you don't have, substitute OpenCode equivalents:
 
 Use OpenCode's native \`skill\` tool to list and load skills.`;
 
-    _bootstrapCache = `<IMPORTANT>
+    _bootstrapCache = `${FORGE_BOOTSTRAP_MARKER}
+<IMPORTANT>
 You have the Forge orchestration plugin installed.
 
 **IMPORTANT: The using-forge skill content is included below. It is ALREADY LOADED - you are currently following it. Do NOT use the skill tool to load "using-forge" again.**
@@ -78,8 +80,8 @@ ${toolMapping}
       const firstUser = output.messages.find(m => m.info.role === 'user');
       if (!firstUser || !firstUser.parts.length) return;
 
-      // Guard: skip if already injected
-      if (firstUser.parts.some(p => p.type === 'text' && p.text.includes('Forge orchestration plugin'))) return;
+      // Guard: skip if already injected (use stable marker, not content string)
+      if (firstUser.parts.some(p => p.type === 'text' && p.text.includes(FORGE_BOOTSTRAP_MARKER))) return;
 
       const ref = firstUser.parts[0];
       firstUser.parts.unshift({ ...ref, type: 'text', text: bootstrap });
