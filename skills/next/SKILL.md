@@ -7,6 +7,13 @@ description: Confirm design and execute, or continue after batch completion
 
 Advance the Forge workflow. Behavior depends on current state.
 
+## First: Output Command Identifier
+
+```
+⚒ forge · /next
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
 ## Read State
 
 Read `.forge/progress.json`. Determine which scenario applies:
@@ -37,6 +44,12 @@ Read `.forge/progress.json`. Determine which scenario applies:
 
 ### Step 2: Generate Implementation Plan
 
+Output:
+```
+▸ Phase 4 · Planning
+    → Generating implementation plan...
+```
+
 **Use the Superpowers `writing-plans` skill.**
 
 Provide as input:
@@ -52,7 +65,17 @@ Requirements for the plan:
 
 Output location: `docs/forge/changes/<feature>/plans/full-plan.md`
 
+After plan written, output:
+```
+    ✓ full-plan.md written (<N> tasks)
+```
+
 ### Step 3: Batch Cutting
+
+Output:
+```
+    → Cutting batches...
+```
 
 Read `full-plan.md` and extract all tasks with their dependencies.
 
@@ -84,6 +107,11 @@ Read `full-plan.md` and extract all tasks with their dependencies.
    ...
    ```
    Each batch file contains the FULL task definitions (copied from full-plan.md, not references).
+
+After batch cutting, output:
+```
+    ✓ <N> batches created
+```
 
 ### Step 4: Update progress.json
 
@@ -126,6 +154,11 @@ Read `full-plan.md` and extract all tasks with their dependencies.
 
 ### Step 5: Begin Execution
 
+Output:
+```
+▸ Phase 5 · Execution (Batch 1/<N>)
+```
+
 Proceed immediately to **Scenario B** (execute current batch).
 
 ---
@@ -134,11 +167,21 @@ Proceed immediately to **Scenario B** (execute current batch).
 
 **Trigger:** `status = "executing"`, current batch has tasks with status `"pending"` or `"in_progress"`
 
+If not already displayed (e.g., coming from Scenario C), output:
+```
+▸ Phase 5 · Execution (Batch <current>/<total>)
+```
+
 ### For each pending task (in order):
 
 1. **Read task definition** from `batch-<N>.md`
 
-2. **Update progress.json:** Set task status to `"in_progress"`, add `started_at`
+2. **Output progress:**
+   ```
+       → Task <id>: <title>...
+   ```
+
+3. **Update progress.json:** Set task status to `"in_progress"`, add `started_at`
 
 3. **Dispatch subagent:**
    Use the Superpowers `subagent-driven-development` skill.
@@ -164,12 +207,13 @@ Proceed immediately to **Scenario B** (execute current batch).
    - Update progress.json task entry
 
 5. **Context discipline:**
-   After progress-tracking completes, record ONLY:
-   - "Task N: done" (or "Task N: failed")
-   
-   Do NOT retain task details in conversation. All state is in files.
+   After progress-tracking completes, output:
+   ```
+       ✓ Task <id>: done
+   ```
+   Record ONLY "Task N: done" in conversation. Do NOT retain task details.
 
-6. **If task failed:** STOP. Do not proceed to next task. Report to user.
+6. **If task failed:** Output `    ✗ Task <id>: failed (<reason>)` and STOP. Do not proceed to next task. Report to user.
 
 7. **Continue** to next pending task.
 
@@ -217,6 +261,12 @@ Proceed immediately to **Scenario B** (execute current batch).
 ## Scenario D: Full Verification
 
 **Trigger:** `status = "executing"`, ALL batches have status `"done"`
+
+Output:
+```
+▸ Phase 6 · Verification
+    → Running full test suite...
+```
 
 ### Step 1: Run Full Test Suite
 
@@ -270,21 +320,29 @@ Include:
 ### Step 6: Report to User
 
 **If passed:**
-> "✅ All tests pass. Verification complete.
-> 
-> Coverage: <X>% (target: <Y>%)
-> Report: docs/forge/changes/<feature>/test-report.html
-> 
-> Run `/done` to archive this feature."
+Output:
+```
+    ✓ Tests passing
+    ✓ Build OK
+    ✓ Coverage: <X>% (target: <Y>%)
+
+▸ Verification Complete ✓
+    Run /done to archive this feature.
+```
 
 **If failed:**
-> "❌ Verification failed.
-> 
-> Failed tests: <list>
-> Coverage: <X>% (target: <Y>%)
-> Report: docs/forge/changes/<feature>/test-report.html
-> 
-> Fix the failing tests and run `/next` again to re-verify."
+Output:
+```
+    ✗ Tests failed (<N> failures)
+    Coverage: <X>% (target: <Y>%)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠ Verification failed.
+
+  See report: docs/forge/changes/<feature>/test-report.html
+  Fix failing tests and run /next again.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
 
 ---
 
