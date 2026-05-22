@@ -72,19 +72,16 @@ ${toolMapping}
       }
     },
 
-    // Inject bootstrap into the first user message of each session
-    'experimental.chat.messages.transform': async (_input, output) => {
+    // Inject bootstrap into every conversation via system transform
+    'experimental.chat.system.transform': async (_input, output) => {
       const bootstrap = getBootstrapContent();
-      if (!bootstrap || !output.messages.length) return;
-
-      const firstUser = output.messages.find(m => m.info.role === 'user');
-      if (!firstUser || !firstUser.parts.length) return;
+      if (!bootstrap) return;
 
       // Guard: skip if already injected (use stable marker, not content string)
-      if (firstUser.parts.some(p => p.type === 'text' && p.text.includes(FORGE_BOOTSTRAP_MARKER))) return;
+      const existing = output.system || '';
+      if (existing.includes(FORGE_BOOTSTRAP_MARKER)) return;
 
-      const ref = firstUser.parts[0];
-      firstUser.parts.unshift({ ...ref, type: 'text', text: bootstrap });
+      output.system = bootstrap + '\n\n' + existing;
     }
   };
 };
