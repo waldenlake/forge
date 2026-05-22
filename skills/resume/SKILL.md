@@ -26,6 +26,10 @@ field for the platform-appropriate filename (CLAUDE.md / AGENTS.md / GEMINI.md).
 
 ## Pre-Conditions
 
+**SCHEMA VALIDATION:** Reference `schemas/progress.schema.json` when reading
+or writing progress.json. If the file fails schema validation, treat it as
+corrupted and follow the recovery flow.
+
 1. Read `.forge/progress.json`
    - File missing → ERROR: "No active Forge feature found. Use `/start` to begin."
    - `status` = `"idle"` → ERROR: "No active feature. Use `/start` to begin."

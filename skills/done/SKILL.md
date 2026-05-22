@@ -46,6 +46,10 @@ field. Use that filename for all read/write operations.
 
 ## Main Flow
 
+**SCHEMA VALIDATION:** All progress.json updates in this skill must conform to
+`schemas/progress.schema.json`. Status enum: `idle | planning | executing |
+verification_complete | bugfix`.
+
 Output:
 ```
 ▸ Verification
@@ -91,6 +95,27 @@ Open the memory file. In the `## Forge` section:
 ```
 
 Output: `    ✓ Memory file updated`
+
+### Step 2.5: Verify Memory File Update
+
+Read the memory file again (filename from `.forge/config.json.memory_file`).
+Search the file for the entry just added: "<feature-slug> (<YYYY-MM-DD>)" under
+the "Completed Features" section.
+
+**If the entry is NOT present:**
+- Output: `    ⚠ Memory file update did not land. Re-attempting...`
+- Re-execute Step 2 (write Completed Features entry)
+- Read the file again to verify
+- If still missing → ERROR:
+  ```
+  Cannot update <memory_file>: write attempted twice but entry not found.
+  Check file permissions or path. Re-run /done after fixing.
+  ```
+- STOP. Do NOT proceed to Step 3.
+
+**If the entry IS present:**
+- Output: `    ✓ Memory file verified`
+- Proceed to Step 3.
 
 ### Step 3: Clean progress.json
 

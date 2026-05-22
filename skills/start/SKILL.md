@@ -141,6 +141,11 @@ Superpowers when needed. Forge does not pre-create them.
 
 ### Step 7: Write .forge/config.json
 
+**SCHEMA VALIDATION:** Before writing, reference `schemas/config.schema.json`
+(in the Forge plugin directory). Required fields, enum values, and types are
+strictly defined there. Writing a value not allowed by the schema produces a
+file other Forge skills cannot read.
+
 ```json
 {
   "version": "1.0",
@@ -230,6 +235,10 @@ Documents will be written by Superpowers to:
 Forge stores its state in `.forge/` (config.json, progress.json, scenarios.json).
 
 ### 3. Write .forge/progress.json
+
+**SCHEMA VALIDATION:** Reference `schemas/progress.schema.json` for the exact
+allowed structure. Status enum: `idle | planning | executing | verification_complete | bugfix`.
+Task status enum: `pending | in_progress | done | failed | deferred`.
 
 ```json
 {

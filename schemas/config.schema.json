@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Forge Config",
+  "type": "object",
+  "required": ["version", "memory_file", "test_mode", "project_type"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "memory_file": {
+      "type": "string",
+      "enum": ["CLAUDE.md", "AGENTS.md", "GEMINI.md"]
+    },
+    "test_mode": {
+      "type": "string",
+      "enum": ["normal", "enhanced"]
+    },
+    "gstack_installed": { "type": "boolean" },
+    "test_command": { "type": "string" },
+    "test_framework": { "type": "string" },
+    "test_coverage": {
+      "type": "object",
+      "properties": {
+        "unit": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "integration": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "e2e": { "type": "string", "enum": ["P0", "P0+P1", "all"] }
+      }
+    },
+    "project_type": {
+      "type": "string",
+      "enum": ["new", "existing"]
+    },
+    "guards": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["enabled", "actions"],
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "every_n_tasks": { "type": "integer", "minimum": 1 },
+          "actions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Forge Progress",
+  "type": "object",
+  "required": ["version", "feature", "status", "tasks", "guard_history"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "feature": { "type": ["string", "null"] },
+    "status": {
+      "type": "string",
+      "enum": ["idle", "planning", "executing", "verification_complete", "bugfix"]
+    },
+    "created_at": { "type": ["string", "null"], "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "spec_path": { "type": ["string", "null"] },
+    "plan_path": { "type": ["string", "null"] },
+    "total_tasks": { "type": "integer", "minimum": 0 },
+    "completed_tasks": { "type": "integer", "minimum": 0 },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "status"],
+        "properties": {
+          "id": { "type": "integer", "minimum": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "in_progress", "done", "failed", "deferred"]
+          },
+          "commit": { "type": "string" },
+          "started_at": { "type": "string", "format": "date-time" },
+          "completed_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "guard_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "triggered_at", "status"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^guard-\\d+$" },
+          "type": { "type": "string" },
+          "triggered_at": { "type": "string", "format": "date-time" },
+          "task_range": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "status": {
+            "type": "string",
+            "enum": ["passed", "failed", "skipped"]
+          },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "passed", "failed"]
+        },
+        "test_mode": { "type": "string", "enum": ["normal", "enhanced"] },
+        "last_run": { "type": ["string", "null"], "format": "date-time" },
+        "report_path": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
