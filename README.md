@@ -25,7 +25,21 @@ Human intervention at only two points: **requirement confirmation** and
 
 ### OpenCode
 
-See `.opencode/INSTALL.md` for detailed instructions.
+```bash
+# Linux / macOS
+git clone https://github.com/waldenlake/forge.git /tmp/forge-installer
+bash /tmp/forge-installer/scripts/install-opencode.sh
+rm -rf /tmp/forge-installer
+```
+
+```cmd
+:: Windows
+git clone https://github.com/waldenlake/forge.git %TEMP%\forge-installer
+%TEMP%\forge-installer\scripts\install-opencode.cmd
+rmdir /s /q %TEMP%\forge-installer
+```
+
+Restart OpenCode. See `.opencode/INSTALL.md` for details and troubleshooting.
 
 ## Commands
 
@@ -71,7 +85,7 @@ See `.opencode/INSTALL.md` for detailed instructions.
 | Platform | Install Method | Status |
 |----------|---------------|--------|
 | Claude Code | `/plugin install` or marketplace | ✅ Full support |
-| OpenCode | `opencode.json` plugin array | ✅ Full support |
+| OpenCode | install script (clone + bridge) | ✅ Full support |
 | Windows | Git Bash required for hooks | ✅ Via run-hook.cmd polyglot |
 | macOS/Linux | Native bash | ✅ Full support |
 
