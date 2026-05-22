@@ -7,17 +7,35 @@
 
 ## Installation
 
-Clone the forge repository to OpenCode's plugins directory (same way Superpowers is installed):
+Add forge to the `plugin` array in your `opencode.json` (global or project-level):
 
-```bash
-# Windows
-git clone https://github.com/waldenlake/forge.git %USERPROFILE%\.config\opencode\plugins\forge
-
-# macOS/Linux
-git clone https://github.com/waldenlake/forge.git ~/.config/opencode/plugins/forge
+```json
+{
+  "plugin": ["forge@git+https://github.com/waldenlake/forge.git"]
+}
 ```
 
-Restart OpenCode. The plugin loads automatically from the plugins directory.
+Restart OpenCode. The plugin installs through OpenCode's plugin manager and
+registers all skills.
+
+Verify by asking: "Tell me about forge"
+
+## Windows Install Issues
+
+Some Windows OpenCode builds have issues with `git+https` URLs. If the plugin
+doesn't load, install with npm instead:
+
+```bash
+npm install forge@git+https://github.com/waldenlake/forge.git --prefix "%USERPROFILE%\.config\opencode"
+```
+
+Then use the local path in `opencode.json`:
+
+```json
+{
+  "plugin": ["~/.config/opencode/node_modules/forge"]
+}
+```
 
 ## Verify
 
@@ -43,28 +61,26 @@ use skill tool to load start
 
 ## Updating
 
-```bash
-# Windows
-cd %USERPROFILE%\.config\opencode\plugins\forge && git pull
+OpenCode installs Forge through a git-backed package spec. If updates do not
+appear after restart, clear OpenCode's package cache or reinstall the plugin.
 
-# macOS/Linux
-cd ~/.config/opencode/plugins/forge && git pull
+To pin a specific version:
+
+```json
+{
+  "plugin": ["forge@git+https://github.com/waldenlake/forge.git#v0.1.0"]
+}
 ```
 
 ## Troubleshooting
 
-### Skills not found after restart
-
-1. Verify the directory exists: `~/.config/opencode/plugins/forge/`
-2. Check that `skills/` directory is present inside it
-3. Restart OpenCode again
-
 ### Plugin not loading
 
-Check OpenCode logs for errors related to forge.js loading.
+1. Check OpenCode logs for errors related to forge
+2. Verify the plugin line in your `opencode.json`
+3. Try the npm install workaround above (Windows)
 
-## Note on opencode.json
+### Skills not found
 
-Do NOT add forge to the `"plugin"` array in `opencode.json`. That mechanism
-uses Bun's npm installer which has issues with git+https URLs on Windows.
-The direct clone approach above is the reliable method (same as Superpowers).
+1. Use `skill` tool to list what's discovered
+2. Check that the plugin loaded successfully
