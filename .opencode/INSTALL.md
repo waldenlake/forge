@@ -7,17 +7,17 @@
 
 ## Installation
 
-Add forge to the `plugin` array in your `opencode.json` (global or project-level):
+Clone the forge repository to OpenCode's plugins directory (same way Superpowers is installed):
 
-```json
-{
-  "plugin": ["forge@git+https://github.com/waldenlake/forge.git"]
-}
+```bash
+# Windows
+git clone https://github.com/waldenlake/forge.git %USERPROFILE%\.config\opencode\plugins\forge
+
+# macOS/Linux
+git clone https://github.com/waldenlake/forge.git ~/.config/opencode/plugins/forge
 ```
 
-Restart OpenCode. The plugin:
-1. Registers its skills directory so OpenCode discovers all forge skills
-2. Injects the `using-forge` meta-skill content at session start
+Restart OpenCode. The plugin loads automatically from the plugins directory.
 
 ## Verify
 
@@ -43,31 +43,28 @@ use skill tool to load start
 
 ## Updating
 
-OpenCode re-fetches git-backed plugins on restart. To pin a version:
+```bash
+# Windows
+cd %USERPROFILE%\.config\opencode\plugins\forge && git pull
 
-```json
-{
-  "plugin": ["forge@git+https://github.com/waldenlake/forge.git#v0.1.0"]
-}
+# macOS/Linux
+cd ~/.config/opencode/plugins/forge && git pull
 ```
 
 ## Troubleshooting
 
+### Skills not found after restart
+
+1. Verify the directory exists: `~/.config/opencode/plugins/forge/`
+2. Check that `skills/` directory is present inside it
+3. Restart OpenCode again
+
 ### Plugin not loading
 
-1. Check that `opencode.json` has the plugin line
-2. Restart OpenCode
-3. Look for errors in OpenCode logs
+Check OpenCode logs for errors related to forge.js loading.
 
-### Skills not found
+## Note on opencode.json
 
-1. Use `skill` tool to list what's discovered
-2. Verify the plugin loaded (check for "Forge" in available skills)
-
-### Windows issues
-
-If OpenCode cannot install via git URL, try:
-
-```
-npm install forge@git+https://github.com/waldenlake/forge.git --prefix "%USERPROFILE%\.cache\opencode"
-```
+Do NOT add forge to the `"plugin"` array in `opencode.json`. That mechanism
+uses Bun's npm installer which has issues with git+https URLs on Windows.
+The direct clone approach above is the reliable method (same as Superpowers).
