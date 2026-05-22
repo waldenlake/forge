@@ -77,6 +77,18 @@ See `.opencode/INSTALL.md` for detailed instructions.
 
 **Windows note:** The SessionStart hook requires Git Bash (installed with Git for Windows). The `run-hook.cmd` polyglot automatically locates bash. If bash is unavailable, the plugin works but without automatic context injection — load the `using-forge` skill manually.
 
+## State File Schemas
+
+Forge's state files conform to JSON Schemas in the `schemas/` directory:
+
+- `schemas/progress.schema.json` — `.forge/progress.json` structure
+- `schemas/config.schema.json` — `.forge/config.json` structure
+- `schemas/scenarios.schema.json` — `.forge/scenarios.json` structure
+
+These define exact required fields, enum values, and types. Forge skills
+reference these schemas before writing JSON files. If you edit state files
+manually, validate against the schemas to ensure Forge can read them.
+
 ## Philosophy
 
 - Tests from human-confirmed scenarios, not AI invention

@@ -39,6 +39,10 @@ field for the platform-appropriate filename.
 
 ## Main Flow
 
+**SCHEMA VALIDATION:** progress.json writes must conform to
+`schemas/progress.schema.json`. Use status `bugfix` for bug fix sessions.
+Task status enum: `pending | in_progress | done | failed | deferred`.
+
 ### Step 1: Setup
 
 Generate bugfix ID from description (3-5 words, hyphenated, prefixed `bugfix-`).

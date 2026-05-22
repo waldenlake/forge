@@ -16,6 +16,10 @@ Advance the Forge workflow. Behavior depends on current state.
 
 ## Read State
 
+**SCHEMA VALIDATION:** All progress.json reads/writes in this skill must conform
+to `schemas/progress.schema.json`. Strict enums for status, task status, guard
+status. Reference the schema before writing.
+
 Read `.forge/progress.json`. Determine which scenario applies:
 
 | Status | Condition | Action |

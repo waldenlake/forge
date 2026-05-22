@@ -116,6 +116,15 @@ Generate additional UI-specific scenarios:
 
 ### Step 7: Write scenarios.json
 
+**SCHEMA VALIDATION:** Before writing, reference `schemas/scenarios.schema.json`.
+The schema enforces:
+- ID pattern: `S\d{3}` (e.g., S001, S002)
+- `then[].type` enum: `result | side-effect | state-change | error`
+- `testTypes` enum: `functional | ui | integration | performance`
+- `priority` enum: `P0 | P1 | P2`
+- Title max length: 80 characters
+- At least one scenario required
+
 Write to `.forge/scenarios.json`:
 
 ```json

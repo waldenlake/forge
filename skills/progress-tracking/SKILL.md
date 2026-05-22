@@ -17,10 +17,15 @@ context minimal.
 
 ## Process
 
-### Step 1: Determine Test Command
+### Step 1: Determine Test Command (Lazy Detection)
 
-1. Read `.forge/config.json` → `test_command` field
-2. If empty or missing, auto-detect:
+**Always re-detect if the cached command is empty.** This handles cases where
+init ran before project files (e.g., go.mod) existed.
+
+1. Read `.forge/config.json` → `test_command` field.
+2. If non-empty AND the source file still exists (e.g., `package.json` for npm test):
+   - Use that command.
+3. Otherwise (empty OR source file missing), re-detect from project files:
 
 | File | Condition | Command |
 |------|-----------|---------|
@@ -29,7 +34,11 @@ context minimal.
 | `go.mod` | exists | `go test ./...` |
 | `Cargo.toml` | exists | `cargo test` |
 
-3. If nothing detected → WARN: "No test command found. Skipping test verification."
+4. If detection succeeds:
+   - Update `.forge/config.json` fields `test_command` and `test_framework`
+   - Use the new command
+
+5. If nothing detected → WARN: "No test command found. Skipping test verification."
    Proceed to Step 3 (commit without test verification).
 
 ### Step 2: Run Tests and Handle Failures
@@ -72,6 +81,11 @@ Capture the resulting commit SHA.
 
 ### Step 4: Update progress.json
 
+**SCHEMA VALIDATION:** Before updating `.forge/progress.json`, reference
+`schemas/progress.schema.json`. Task status enum is strict:
+`pending | in_progress | done | failed | deferred`. Writing any other value
+breaks downstream skills.
+
 Update the task entry in `progress.json.tasks`:
 
 ```json
@@ -88,6 +102,9 @@ Increment `progress.json.completed_tasks`.
 Update root `updated_at` field.
 
 ### Step 5: Check Guards
+
+**SCHEMA VALIDATION:** Reference `schemas/progress.schema.json` for guard_history
+entry format. Guard status enum: `passed | failed | skipped`. ID pattern: `guard-N`.
 
 Read `.forge/config.json` → `guards` object.
 
