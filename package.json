@@ -1,12 +1,6 @@
 {
   "name": "forge",
   "version": "0.1.0",
-  "description": "AI-driven software development orchestration plugin",
   "type": "module",
-  "main": ".opencode/plugins/forge.js",
-  "exports": {
-    ".": "./.opencode/plugins/forge.js"
-  },
-  "keywords": ["opencode", "plugin", "orchestration", "tdd", "ai"],
-  "license": "MIT"
+  "main": ".opencode/plugins/forge.js"
 }
