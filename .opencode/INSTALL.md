@@ -2,15 +2,23 @@
 
 ## Why a script
 
-OpenCode auto-loads `.js` / `.ts` files **at the root** of `~/.config/opencode/plugins/`,
-but does **not** descend into subdirectories. Forge ships as a multi-file
-plugin (skills, hooks, schemas), so a tiny bridge file in the plugins root is
-needed to re-export the real plugin from a checked-out copy.
+OpenCode's plugin and skill systems each have a strict layout:
 
-The install script handles both pieces in one shot:
+- **Plugins**: only `.js` / `.ts` / `.mjs` files at the **root** of
+  `~/.config/opencode/plugins/` are auto-loaded. Subdirectories are ignored.
+- **Skills**: only `~/.config/opencode/skills/<name>/SKILL.md`,
+  `.claude/skills/<name>/SKILL.md`, `.agents/skills/<name>/SKILL.md`, and
+  their project-level equivalents are discovered. Plugins cannot register
+  custom skill paths in current OpenCode builds.
+
+Forge ships as a single repo with both a plugin and skills. The install
+script wires it into both systems in one shot:
 
 1. Clones the forge repo into `~/.config/opencode/plugins/forge/`
-2. Drops a `forge.mjs` bridge file into `~/.config/opencode/plugins/`
+2. Drops a `forge.mjs` bridge file into `~/.config/opencode/plugins/` that
+   re-exports the real plugin (so the plugin loader picks it up)
+3. Creates a directory junction (Windows) or symlink (Unix) for each forge
+   skill under `~/.config/opencode/skills/<name>` (so `/skills` lists them)
 
 ## Prerequisites
 
@@ -80,6 +88,9 @@ Linux / macOS:
 
 ```bash
 rm -rf ~/.config/opencode/plugins/forge ~/.config/opencode/plugins/forge.mjs
+for s in using-forge start next resume done bugfix scenarios progress-tracking session-handoff; do
+  rm -rf "${HOME}/.config/opencode/skills/${s}"
+done
 ```
 
 Windows (cmd):
@@ -87,6 +98,7 @@ Windows (cmd):
 ```cmd
 rmdir /s /q "%USERPROFILE%\.config\opencode\plugins\forge"
 del "%USERPROFILE%\.config\opencode\plugins\forge.mjs"
+for %S in (using-forge start next resume done bugfix scenarios progress-tracking session-handoff) do rmdir "%USERPROFILE%\.config\opencode\skills\%S"
 ```
 
 ## Why not `forge@git+https://...` in opencode.json?
@@ -132,15 +144,18 @@ opencode run --print-logs "hi" 2>&1 | grep -i forge
 You should see `loading plugin` for `plugins/forge.mjs`. If you see an ERROR,
 the path inside the bridge is wrong, re-run the install script.
 
-### Skills not visible
+### Skills not visible in `/skills`
 
-Confirm the `config` hook ran by inspecting OpenCode's reported skill paths.
-Forge contributes:
+Confirm each link/junction exists and points at a real `SKILL.md`:
 
+```bash
+ls -la ~/.config/opencode/skills/using-forge/SKILL.md
 ```
-~/.config/opencode/plugins/forge/skills
+
+```cmd
+dir "%USERPROFILE%\.config\opencode\skills\using-forge\SKILL.md"
 ```
 
-If that directory exists but no skills appear, the plugin loaded but the
-`config` hook on this OpenCode build does not allow `skills.paths` injection.
-File an issue with the OpenCode log.
+If the link is missing, re-run the install script. On Windows, if `mklink /J`
+fails the script falls back to copying — that works but `git pull` updates
+won't propagate, so re-run the script after every update.

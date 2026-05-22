@@ -1,8 +1,16 @@
 /**
  * Forge plugin for OpenCode.ai
  *
- * Injects forge bootstrap context via message transform.
- * Auto-registers skills directory via config hook (no symlinks needed).
+ * Injects forge bootstrap context into the first user message of each
+ * session, mirroring the approach Superpowers uses (which is the only
+ * mechanism OpenCode actually honours in current builds).
+ *
+ * Skills are NOT registered through this plugin. OpenCode's documented
+ * skill discovery only walks fixed locations (`.opencode/skills/`,
+ * `~/.config/opencode/skills/`, `.claude/skills/`, `~/.claude/skills/`,
+ * `.agents/skills/`, `~/.agents/skills/`). The forge install script
+ * symlinks each skill into `~/.config/opencode/skills/<name>/` so
+ * `/skills` lists them.
  */
 import path from 'path';
 import fs from 'fs';
@@ -19,13 +27,12 @@ const stripFrontmatter = (content) => {
 // Module-level cache for bootstrap content
 let _bootstrapCache = undefined;
 
-// Stable marker for guard logic (won't break if SKILL.md content changes)
+// Stable marker so the guard works even if SKILL.md content changes
 const FORGE_BOOTSTRAP_MARKER = '<!-- forge-bootstrap-injected -->';
 
-export const ForgePlugin = async ({ client, directory }) => {
+export const ForgePlugin = async () => {
   const forgeSkillsDir = path.resolve(__dirname, '../../skills');
 
-  // Helper to generate bootstrap content (cached after first call)
   const getBootstrapContent = () => {
     if (_bootstrapCache !== undefined) return _bootstrapCache;
 
@@ -63,25 +70,22 @@ ${toolMapping}
   };
 
   return {
-    // Inject skills path into live config so OpenCode discovers forge skills
-    config: async (config) => {
-      config.skills = config.skills || {};
-      config.skills.paths = config.skills.paths || [];
-      if (!config.skills.paths.includes(forgeSkillsDir)) {
-        config.skills.paths.push(forgeSkillsDir);
-      }
-    },
-
-    // Inject bootstrap into every conversation via system transform
-    'experimental.chat.system.transform': async (_input, output) => {
+    // Inject bootstrap into the first user message of each session.
+    // Same hook Superpowers uses; verified working with current OpenCode.
+    'experimental.chat.messages.transform': async (_input, output) => {
       const bootstrap = getBootstrapContent();
-      if (!bootstrap) return;
+      if (!bootstrap || !output.messages || !output.messages.length) return;
 
-      // Guard: skip if already injected (use stable marker, not content string)
-      const existing = output.system || '';
-      if (existing.includes(FORGE_BOOTSTRAP_MARKER)) return;
+      const firstUser = output.messages.find((m) => m.info && m.info.role === 'user');
+      if (!firstUser || !firstUser.parts || !firstUser.parts.length) return;
 
-      output.system = bootstrap + '\n\n' + existing;
+      // Guard against double injection across re-invocations of the hook
+      if (firstUser.parts.some((p) => p.type === 'text' && p.text && p.text.includes(FORGE_BOOTSTRAP_MARKER))) {
+        return;
+      }
+
+      const ref = firstUser.parts[0];
+      firstUser.parts.unshift({ ...ref, type: 'text', text: bootstrap });
     }
   };
 };
