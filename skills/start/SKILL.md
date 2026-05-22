@@ -52,7 +52,26 @@ Output:
 
 ### Step 2: Check Superpowers
 
-Attempt to verify Superpowers skills are accessible (try loading brainstorming skill).
+Superpowers can reach you through two channels in different IDEs:
+
+1. **Skill discovery** — `skill` tool lists `brainstorming`, `writing-plans`, etc.
+2. **Plugin bootstrap** — Superpowers plugin injects an `<EXTREMELY_IMPORTANT>`
+   bootstrap block into the conversation (OpenCode runs Superpowers this way).
+
+Treat Superpowers as available if **any** of the following holds:
+
+- The current system/user context already contains the marker
+  `<EXTREMELY_IMPORTANT>` and the word "superpowers" (the plugin injected
+  bootstrap, AI can use the skills directly).
+- The `skill` tool can load the `brainstorming` skill (Claude Code path).
+- A SKILL.md exists at any of these locations:
+  - `~/.config/opencode/plugins/superpowers/skills/brainstorming/SKILL.md`
+  - `~/.config/opencode/skills/brainstorming/SKILL.md`
+  - `~/.claude/skills/brainstorming/SKILL.md`
+  - `~/.claude/plugins/superpowers/skills/brainstorming/SKILL.md`
+
+Run the file-system checks with the `bash` tool (works on Linux/macOS and on
+Windows with Git Bash) or with `Test-Path` in PowerShell.
 
 **If available:**
 ```
@@ -70,7 +89,8 @@ Attempt to verify Superpowers skills are accessible (try loading brainstorming s
     /plugin install superpowers@claude-plugins-official
 
   OpenCode:
-    "superpowers@git+https://github.com/obra/superpowers.git"
+    git clone https://github.com/obra/superpowers.git \
+      ~/.config/opencode/plugins/superpowers
 
   Install and run /start again.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -95,12 +115,18 @@ Attempt to verify Superpowers skills are accessible (try loading brainstorming s
 
 ### Step 4: Check gstack
 
-1. Try to detect gstack: check if gstack skills are loadable via Skill tool (try loading gstack/qa)
-2. Alternatively, check if `~/.claude/skills/gstack` or equivalent directory exists
-3. If available:
+gstack is optional. Treat it as available if **any** of:
+
+- The `skill` tool can list a `gstack` or `gstack-qa` skill.
+- A SKILL.md exists at any of:
+  - `~/.config/opencode/plugins/gstack/skills/qa/SKILL.md`
+  - `~/.config/opencode/skills/gstack/SKILL.md`
+  - `~/.claude/skills/gstack/SKILL.md` (any sub-skill is fine)
+
+1. If available:
    - Output: `    ✓ gstack`
    - Set `gstack_installed: true` in config
-4. If NOT available:
+2. If NOT available:
    - Output: `    · gstack (optional)`
    - Set `gstack_installed: false` in config
    - Always continue (never blocking)
