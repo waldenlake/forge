@@ -36,7 +36,12 @@ const validProgress = {
   version: "1.0",
   feature: "schema validation",
   status: "executing",
+  created_at: "2026-05-25T08:00:00.000Z",
   updated_at: "2026-05-25T09:00:00.000Z",
+  spec_path: null,
+  plan_path: null,
+  total_tasks: 1,
+  completed_tasks: 0,
   tasks: [
     {
       id: 1,
@@ -45,6 +50,12 @@ const validProgress = {
     },
   ],
   guard_history: [],
+  verification: {
+    status: "pending",
+    test_mode: "normal",
+    last_run: null,
+    report_path: null,
+  },
 };
 
 describe("schema validation", () => {
@@ -178,6 +189,39 @@ describe("schema validation", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors.join("\n")).toMatch(/date-time|format/i);
+  });
+
+  test("rejects progress missing state contract fields", async () => {
+    const { validateJsonFile } = await import("../src/lib/schema.js");
+
+    const result = validateJsonFile(progressSchemaPath, {
+      version: "1.0",
+      feature: null,
+      status: "idle",
+      tasks: [],
+      guard_history: [],
+      verification: {
+        status: "pending",
+        test_mode: "normal",
+        last_run: null,
+        report_path: null,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors.join("\n")).toMatch(/updated_at|required/i);
+  });
+
+  test("rejects progress with incomplete verification state", async () => {
+    const { validateJsonFile } = await import("../src/lib/schema.js");
+
+    const result = validateJsonFile(progressSchemaPath, {
+      ...validProgress,
+      verification: {},
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors.join("\n")).toMatch(/status|test_mode|required/i);
   });
 
   test("schema:validate rejects invalid progress date-time without stderr warnings", () => {
