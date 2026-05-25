@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command, CommanderError } from "commander";
+import { registerSchemaValidateCommand } from "./commands/schema-validate.js";
 import type { CliJson } from "./types.js";
 
 const VERSION = "0.2.0";
@@ -41,6 +42,8 @@ async function main(argv: string[]): Promise<void> {
 
       program.help();
     });
+
+  registerSchemaValidateCommand(program);
 
   await program.parseAsync(argv);
 }

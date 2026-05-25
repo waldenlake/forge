@@ -30,7 +30,14 @@
           },
           "commit": { "type": "string" },
           "started_at": { "type": "string", "format": "date-time" },
-          "completed_at": { "type": "string", "format": "date-time" }
+          "completed_at": { "type": "string", "format": "date-time" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "requires_human_review": { "type": "boolean" },
+          "failure_reason": { "type": "string" },
+          "defer_reason": { "type": "string" }
         }
       }
     },
