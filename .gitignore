@@ -16,6 +16,12 @@ dist/
 coverage/
 *.log
 
+# CLI package
+cli/node_modules/
+cli/dist/
+cli/coverage/
+cli/.vitest/
+
 # Python
 __pycache__/
 *.pyc
