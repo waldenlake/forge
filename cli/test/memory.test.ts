@@ -449,3 +449,53 @@ describe("memory state helpers", () => {
     });
   });
 });
+
+describe("workflow rules helpers", () => {
+  test("replaceWorkflowRules inserts rules into Forge section", async () => {
+    const { replaceWorkflowRules } = await import("../src/state/memory.js");
+
+    const content =
+      "# Project Instructions\n\n## Forge\n\n**Current Feature**\n- Feature: Foo\n\n## Notes\nKeep this.\n";
+    const result = replaceWorkflowRules(
+      content,
+      "**Workflow Rules**\n- Always run tests before committing.",
+    );
+
+    expect(result).toContain("**Workflow Rules**");
+    expect(result).toContain("- Always run tests before committing.");
+    expect(result).toContain("## Forge");
+    expect(result).toContain("## Notes\nKeep this.");
+  });
+
+  test("clearWorkflowRules removes rules block", async () => {
+    const { clearWorkflowRules } = await import("../src/state/memory.js");
+
+    const content =
+      "# Project Instructions\n\n## Forge\n\n**Workflow Rules**\n- Always run tests before committing.\n\n**Current Feature**\n- Feature: Foo\n\n## Notes\nKeep this.\n";
+    const result = clearWorkflowRules(content);
+
+    expect(result).not.toContain("**Workflow Rules**");
+    expect(result).not.toContain("- Always run tests before committing.");
+    expect(result).toContain("**Current Feature**");
+    expect(result).toContain("- Feature: Foo");
+    expect(result).toContain("## Notes\nKeep this.");
+  });
+
+  test("replaceWorkflowRules preserves Current Feature subsection", async () => {
+    const { replaceWorkflowRules } = await import("../src/state/memory.js");
+
+    const content =
+      "# Project Instructions\n\n## Forge\n\n**Current Feature**\n- Feature: Bar\n- Progress: 3/5 tasks complete\n\n## Other\nStays.\n";
+    const result = replaceWorkflowRules(
+      content,
+      "**Workflow Rules**\n- No direct state edits.",
+    );
+
+    expect(result).toContain("**Workflow Rules**");
+    expect(result).toContain("- No direct state edits.");
+    expect(result).toContain("**Current Feature**");
+    expect(result).toContain("- Feature: Bar");
+    expect(result).toContain("- Progress: 3/5 tasks complete");
+    expect(result).toContain("## Other\nStays.");
+  });
+});
