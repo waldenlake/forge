@@ -230,20 +230,17 @@ describe("phase 2 stub interfaces", () => {
     });
   });
 
-  test("test:gstack returns unsupported when gstack is enabled but not implemented", () => {
+  test("test:gstack returns error when gstack is enabled but Playwright is not configured", () => {
     withTempProject((cwd) => {
       writeConfig(cwd, defaultConfig({ gstack_installed: true }));
 
-      const result = runForge(cwd, ["test:gstack", "--type", "visual"]);
+      const result = runForge(cwd, ["test:gstack", "--type", "performance"]);
 
       expect(result.status).toBe(1);
-      expect(parseStdout(result)).toEqual({
-        ok: false,
-        unsupported: true,
-        type: "visual",
-        message:
-          "gstack interface exists; execution is not implemented in v2 core runtime",
-      });
+      const payload = parseStdout(result);
+      expect(payload.ok).toBe(false);
+      expect(payload.type).toBe("performance");
+      expect(typeof payload.error).toBe("string");
     });
   });
 
