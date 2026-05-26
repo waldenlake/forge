@@ -63,7 +63,7 @@ export function scanFiles(files: string[], options: SecurityScanOptions = {}): S
 
   for (const file of files) {
     let content: string;
-    try { content = readFileSync(file, 'utf8'); } catch { continue; }
+    try { content = readFileSync(file, 'utf8'); } catch (e) { process.stderr.write(`[security-scan] could not read: ${file}: ${(e as Error).message}\n`); continue; }
     if (isBinaryContent(content)) continue;
     scannedFiles++;
 
@@ -71,8 +71,9 @@ export function scanFiles(files: string[], options: SecurityScanOptions = {}): S
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       for (const rule of RULES) {
-        const match = rule.pattern.exec(line);
-        if (match) {
+        const gPattern = new RegExp(rule.pattern.source, rule.pattern.flags.includes('g') ? rule.pattern.flags : rule.pattern.flags + 'g');
+        let match;
+        while ((match = gPattern.exec(line)) !== null) {
           findings.push({
             severity: rule.severity,
             type: rule.type,
