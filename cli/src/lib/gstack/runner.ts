@@ -1,14 +1,5 @@
 import { runE2e, type GstackE2eResult } from './e2e.js';
-
-// These will be implemented in Tasks 6 and 7
-// For now, define the types and stub functions here
-export type GstackVisualResult = {
-  ok: boolean;
-  type: 'visual';
-  regressions: Array<{ component: string; diff_percent: number; baseline: string; current: string; diff: string }>;
-  threshold: number;
-  screenshots_dir: string;
-};
+import { runVisual, type GstackVisualResult } from './visual.js';
 
 export type GstackPerformanceResult = {
   ok: boolean;
@@ -34,13 +25,11 @@ export function runGstack(cwd: string, options: GstackOptions): GstackResult {
     case 'e2e':
       return runE2e(cwd, options.config);
     case 'visual':
-      return {
-        ok: false,
-        type: 'visual',
-        regressions: [],
+      return runVisual(cwd, {
+        updateBaseline: options.updateBaseline ?? false,
+        compare: options.compare ?? true,
         threshold: options.threshold ?? 1.0,
-        screenshots_dir: '',
-      } satisfies GstackVisualResult;
+      });
     case 'performance':
       return {
         ok: false,
