@@ -5,178 +5,107 @@ description: Complete a feature — verify, archive, and clean up
 
 # /done
 
-Complete the current feature. Verify all work is finished, archive scenarios,
-update project knowledge.
+Complete the current feature after Runtime verification has passed. The CLI
+owns state changes; this skill only coordinates commands and user messaging.
 
-## First: Output Command Identifier
+## Forge CLI
 
+Before calling any Forge Runtime command, resolve the executable:
+
+```bash
+FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/plugins/forge/cli/dist/index.js" ]; then echo "node $HOME/.config/opencode/plugins/forge/cli/dist/index.js"; else echo ".forge/bin/forge"; fi; })
 ```
+
+All Runtime commands output JSON by default. Read the JSON, report blocking
+errors exactly, and do not edit `.forge/*.json` directly.
+
+## Command Identifier
+
+```text
 ⚒ forge · /done
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
----
+## Preconditions
 
-## Memory File
+1. Run `$FORGE_CMD status`.
+2. If there is no active feature, report `"No active feature."` and stop.
+3. If status is not `verification_complete`, tell the user to run `/next` for
+   remaining execution or verification.
+4. If verification is not passed, run `forge verify --coverage` through:
 
-All references to "memory file" mean: read `.forge/config.json` → `memory_file`
-field. Use that filename for all read/write operations.
+   ```bash
+   $FORGE_CMD verify --coverage
+   ```
 
----
+   If it fails, report the JSON details exactly and stop.
 
-## Pre-Conditions
+## Flow
 
-1. Read `.forge/progress.json`
-   - File missing → ERROR: "No active feature."
-   - `status` = `"idle"` → ERROR: "No active feature."
-   - `status` = `"planning"` → ERROR: "Feature still in planning. Use `/next` to begin execution."
+Before changing state, capture the feature slug, task counts, deferred count,
+spec path, plan path, and scenario archive path from the `status` JSON. Current
+Runtime `phase:finish` resets active progress to idle, so later commands must
+use these captured values when their interfaces support explicit metadata.
 
-2. Check all tasks:
-   - Every task must have status `"done"` or `"deferred"`
-   - Any task `"in_progress"`, `"pending"`, or `"failed"`:
-     → ERROR: "Cannot complete. Outstanding tasks: <list>. Finish or defer first."
+1. Finish the Runtime phase:
 
-3. Check verification:
-   - `verification.status` = `"passed"` → proceed
-   - `"pending"` or `"failed"` → WARN: "Verification not passed. Running now..."
-     → Execute Scenario C from /next (full verification)
-     → If fails: ERROR: "Verification failed. Fix issues before `/done`."
+   ```bash
+   $FORGE_CMD phase:finish
+   ```
 
----
+   For user-facing summaries, say `phase:finish`. If blocked, report
+   `blocked_by` exactly and stop.
 
-## Main Flow
+2. Archive scenarios:
 
-**SCHEMA VALIDATION:** All progress.json updates in this skill must conform to
-`schemas/progress.schema.json`. Status enum: `idle | planning | executing |
-verification_complete | bugfix`.
+   ```bash
+   $FORGE_CMD scenarios:archive
+   ```
 
-Output:
+   Use captured feature metadata if Runtime supports it. If the command is
+   blocked because `phase:finish` reset state to idle, report the Runtime JSON
+   exactly. Do not copy files manually.
+
+3. Update memory with captured metadata:
+
+   ```bash
+   $FORGE_CMD memory:complete-feature --feature <feature> --date <YYYY-MM-DD> --tasks "<done>/<total>" --deferred "<count>" --spec <path> --plan <path> --scenarios <path>
+   ```
+
+   If `verified` is false, report the memory file error exactly and stop.
+
+4. Run the backup reset fallback only when Runtime reports a later cleanup or
+   archive step was blocked by the state reset:
+
+   ```bash
+   $FORGE_CMD reset --backup
+   ```
+
+   For user-facing summaries, say `reset --backup`. Report `backup_path` if the
+   JSON includes it. Do not run this fallback silently; explain the blocking
+   Runtime JSON that made it necessary.
+
+5. Optionally commit completion artifacts only if the user asks. This skill does
+   not auto-commit.
+
+## Output
+
+```text
+▸ Complete
+Feature: <feature>
+Tasks: <done>/<total>
+Deferred: <count>
+Scenarios: <archive path>
+Spec: <spec path>
+Plan: <plan path>
+Backup: <backup path>
 ```
-▸ Verification
-    ✓ All tasks complete (<done>/<total>)
-    ✓ Tests passing
-    ✓ Coverage: <X>% (target: <Y>%)
-```
-
-### Step 1: Archive Scenarios
-
-Output:
-```
-▸ Archive
-    → Archiving scenarios...
-```
-
-Copy:
-```
-.forge/scenarios.json → .forge/specs/<feature>-scenarios.json
-```
-
-Output: `    ✓ Scenarios archived to .forge/specs/`
-
-Note: Superpowers documents (`docs/superpowers/specs/<feature>-design.md`,
-`docs/superpowers/plans/<feature>.md`) are NOT moved. They remain as project
-knowledge in their original location.
-
-### Step 2: Update Memory File
-
-Open the memory file. In the `## Forge` section:
-
-1. **Remove** or clear the `**Current Feature**` subsection.
-
-2. **Add** to the `**Completed Features**` subsection (create if missing):
-
-```markdown
-**Completed Features**
-- <feature-slug> (<YYYY-MM-DD>)
-  - Tasks: <completed>/<total> (deferred: <count>)
-  - Spec: <progress.json.spec_path>
-  - Plan: <progress.json.plan_path>
-  - Scenarios: .forge/specs/<feature>-scenarios.json
-```
-
-Output: `    ✓ Memory file updated`
-
-### Step 2.5: Verify Memory File Update
-
-Read the memory file again (filename from `.forge/config.json.memory_file`).
-Search the file for the entry just added: "<feature-slug> (<YYYY-MM-DD>)" under
-the "Completed Features" section.
-
-**If the entry is NOT present:**
-- Output: `    ⚠ Memory file update did not land. Re-attempting...`
-- Re-execute Step 2 (write Completed Features entry)
-- Read the file again to verify
-- If still missing → ERROR:
-  ```
-  Cannot update <memory_file>: write attempted twice but entry not found.
-  Check file permissions or path. Re-run /done after fixing.
-  ```
-- STOP. Do NOT proceed to Step 3.
-
-**If the entry IS present:**
-- Output: `    ✓ Memory file verified`
-- Proceed to Step 3.
-
-### Step 3: Clean progress.json
-
-Overwrite `.forge/progress.json` with idle state:
-
-```json
-{
-  "version": "1.0",
-  "feature": null,
-  "status": "idle",
-  "created_at": null,
-  "updated_at": "<ISO-8601 now>",
-  "spec_path": null,
-  "plan_path": null,
-  "total_tasks": 0,
-  "completed_tasks": 0,
-  "tasks": [],
-  "guard_history": [],
-  "verification": { "status": "pending", "test_mode": "normal", "last_run": null }
-}
-```
-
-Output: `    ✓ progress.json cleaned`
-
-### Step 4: Git Commit
-
-```bash
-git add -A
-git commit -m "feat: complete feature <feature-slug> [forge done]"
-```
-
-### Step 5: Output Completion
-
-```
-▸ Complete ✓
-    Feature:    <feature-slug>
-    Tasks:      <completed>/<total>
-    Deferred:   <count> (if any, list them)
-    Scenarios:  .forge/specs/<feature>-scenarios.json
-    Spec:       <spec_path>
-    Plan:       <plan_path>
-
-    Ready for next feature — use /start.
-```
-
----
-
-## Handling Deferred Tasks
-
-If some tasks have status `"deferred"`:
-- List them with their titles in the completion output
-- Record in memory file completed features entry
-
----
 
 ## Error Handling
 
 | Condition | Response |
-|-----------|----------|
-| progress.json missing | "No active feature." |
-| Tasks incomplete | List incomplete tasks |
-| Verification failed | Auto-run; if still fails, block /done |
-| Git commit fails | Warn but continue |
-| scenarios.json missing | Warn: "No scenarios file. Skipping archival." Continue. |
+|---|---|
+| Runtime command returns `ok: false` | Report JSON `error` or `blocked_by` exactly and stop. |
+| Verification failed | Report failed test/build profiles and stop. |
+| Memory verification failed | Report the Runtime JSON exactly and stop. |
+| Reset backup fails | Report the Runtime JSON exactly; do not claim completion. |

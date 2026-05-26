@@ -17,6 +17,10 @@ Human intervention at only two points: **requirement confirmation** and
 
 ## Installation
 
+Forge v2 includes a CLI Runtime. The Claude/project install script creates a
+project shim, so `forge doctor` can verify that install. The OpenCode installer
+only builds the plugin runtime; use the explicit runtime path shown below.
+
 ### Claude Code
 
 ```
@@ -40,6 +44,41 @@ rmdir /s /q %TEMP%\forge-installer
 ```
 
 Restart OpenCode. See `.opencode/INSTALL.md` for details and troubleshooting.
+
+After a Claude/project install, run:
+
+```bash
+forge doctor
+```
+
+After an OpenCode install, verify the runtime with:
+
+```bash
+node ~/.config/opencode/plugins/forge/cli/dist/index.js doctor
+```
+
+```cmd
+node "%USERPROFILE%\.config\opencode\plugins\forge\cli\dist\index.js" doctor
+```
+
+### Upgrading From v1
+
+Forge v2 does not accept `config.json` v1 projects. For Claude/project installs,
+upgrade old projects with:
+
+```bash
+forge migrate --from 1.0 --to 2.0
+```
+
+For OpenCode installs, run the runtime directly:
+
+```bash
+node ~/.config/opencode/plugins/forge/cli/dist/index.js migrate --from 1.0 --to 2.0
+```
+
+```cmd
+node "%USERPROFILE%\.config\opencode\plugins\forge\cli\dist\index.js" migrate --from 1.0 --to 2.0
+```
 
 ## Commands
 
@@ -99,9 +138,17 @@ Forge's state files conform to JSON Schemas in the `schemas/` directory:
 - `schemas/config.schema.json` — `.forge/config.json` structure
 - `schemas/scenarios.schema.json` — `.forge/scenarios.json` structure
 
-These define exact required fields, enum values, and types. Forge skills
-reference these schemas before writing JSON files. If you edit state files
-manually, validate against the schemas to ensure Forge can read them.
+These define exact required fields, enum values, and types. Forge skills must
+not directly edit Runtime-owned `.forge/*.json`; use the CLI runtime so
+migrations, validation, and compatibility checks run consistently. The
+`scenarios` skill is the narrow exception that creates `.forge/scenarios.json`
+from the confirmed spec, and the workflow validates it immediately with
+`forge schema:validate`.
+
+Skills resolve a global `forge` first and a project `.forge/bin/forge` second.
+Between those two, OpenCode skills can invoke the plugin runtime directly at
+`~/.config/opencode/plugins/forge/cli/dist/index.js`, so `/start` can run before
+project initialization creates a shim.
 
 ## Philosophy
 

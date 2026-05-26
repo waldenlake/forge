@@ -16,6 +16,12 @@ dist/
 coverage/
 *.log
 
+# CLI package
+cli/node_modules/
+cli/dist/
+cli/coverage/
+cli/.vitest/
+
 # Python
 __pycache__/
 *.pyc
@@ -24,5 +30,5 @@ __pycache__/
 # Runtime project files (created by forge in user projects, not in this repo)
 .forge/
 
-# Internal docs (design specs, plans, reviews — not part of the plugin distribution)
-docs/
+.claude/
+

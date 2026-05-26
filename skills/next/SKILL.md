@@ -5,260 +5,165 @@ description: Confirm design and execute, or continue execution
 
 # /next
 
-Advance the Forge workflow. Behavior depends on current state.
+Advance the Forge workflow. Behavior depends on Runtime state, not conversation
+memory.
 
-## First: Output Command Identifier
+## Forge CLI
 
+Before calling any Forge Runtime command, resolve the executable:
+
+```bash
+FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/plugins/forge/cli/dist/index.js" ]; then echo "node $HOME/.config/opencode/plugins/forge/cli/dist/index.js"; else echo ".forge/bin/forge"; fi; })
 ```
+
+All Runtime commands output JSON by default. Read the JSON, report blocking
+errors exactly, and do not edit `.forge/*.json` directly.
+
+## Command Identifier
+
+```text
 ⚒ forge · /next
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ## Read State
 
-**SCHEMA VALIDATION:** All progress.json reads/writes in this skill must conform
-to `schemas/progress.schema.json`. Strict enums for status, task status, guard
-status. Reference the schema before writing.
+Run:
 
-Read `.forge/progress.json`. Determine which scenario applies:
-
-| Status | Condition | Action |
-|--------|-----------|--------|
-| `planning` | scenarios.json exists, no plan_path | → **Scenario A**: Plan + begin execution |
-| `executing` | tasks have `pending` or `in_progress` | → **Scenario B**: Execute remaining tasks |
-| `executing` | all tasks `done` or `deferred` | → **Scenario C**: Full verification |
-| `idle` | — | → ERROR: "No active feature. Use `/start` first." |
-| `bugfix` | — | → ERROR: "Bugfix in progress. Complete it or cancel." |
-
----
-
-## Scenario A: Planning + First Execution
-
-**Trigger:** `status = "planning"` and `.forge/scenarios.json` exists.
-
-### Step 1: GitNexus Analysis (existing projects only)
-
-1. Read `.forge/config.json` → check `project_type`
-2. If `"existing"`:
-   - Check if GitNexus is available
-   - Available → run dependency analysis, save output for use in planning
-   - NOT available → warn: "Proceeding without dependency analysis (GitNexus not available)"
-3. If `"new"` → skip
-
-### Step 2: Generate Implementation Plan
-
-Output:
-```
-▸ Phase 4 · Planning
-    → Generating implementation plan...
+```bash
+$FORGE_CMD status
 ```
 
-**Use the Superpowers `writing-plans` skill.**
+Use the returned JSON:
+- `planning` -> plan registration, then execution.
+- `executing` with open tasks -> execute the next task.
+- `executing` with all tasks done/deferred -> verification.
+- `verification_complete` -> tell the user to run `/done`.
+- `idle` -> `"No active feature. Use /start first."`
+- `bugfix` -> `"Bugfix in progress. Complete it or cancel."`
 
-Provide as input:
-- The spec path from `progress.json.spec_path`
-- `.forge/scenarios.json` (every task should reference one or more scenario IDs)
+If `migration_required` is true, stop and tell the user to run
+`forge migrate --from 1.0 --to 2.0`.
 
-Requirements for the plan:
-- Each task includes TDD steps derived from referenced scenarios
-- 2-5 minutes per task
-- Implementable with zero project context
+## Scenario A: Planning
 
-Superpowers writes the plan to:
-```
-docs/superpowers/plans/YYYY-MM-DD-<feature>.md
-```
+Triggered when Runtime status is `planning`.
 
-After plan is written:
-- Capture the plan path
-- Update `progress.json.plan_path` with this path
-- Output: `    ✓ plan written: <path>`
+1. Use the Superpowers `writing-plans` skill with the design spec path and
+   `.forge/scenarios.json`. The plan must keep tasks small, include TDD steps,
+   and reference confirmed scenarios.
 
-### Step 3: Extract Tasks from Plan
+2. After the plan file exists, register it while Runtime is still `planning`:
 
-Output:
-```
-    → Extracting tasks...
-```
+   ```bash
+   $FORGE_CMD plan:register --plan <path>
+   ```
 
-Read the Superpowers plan file. For each task in the plan, extract:
-- ID (sequential number, 1-indexed)
-- Title (from the task heading)
+   Read the JSON. If task extraction fails, report the Runtime error exactly
+   and stop.
 
-Populate `progress.json.tasks` with the flat list. Do NOT split into batches—
-quality checks happen via Guards (see Step 5).
+3. Advance to execution:
 
-```json
-{
-  "tasks": [
-    { "id": 1, "title": "Set up project structure", "status": "pending" },
-    { "id": 2, "title": "Add user model", "status": "pending" }
-  ]
-}
-```
+   ```bash
+   $FORGE_CMD phase:advance
+   ```
 
-Output: `    ✓ <N> tasks extracted`
+   If it returns `ok: false`, report `blocked_by` exactly and stop.
 
-### Step 4: Update progress.json
-
-Set:
-```json
-{
-  "status": "executing",
-  "updated_at": "<ISO-8601>",
-  "plan_path": "<from Step 2>",
-  "total_tasks": <N>,
-  "completed_tasks": 0
-}
-```
-
-### Step 5: Begin Execution
-
-Proceed immediately to **Scenario B**.
-
----
+4. Continue to Scenario B.
 
 ## Scenario B: Execute Tasks
 
-**Trigger:** `status = "executing"` and tasks have `pending` or `in_progress` status.
+For the next `pending` or `in_progress` task from Runtime state:
 
-Output (if not already shown):
-```
-▸ Phase 5 · Execution
-```
+1. Start or resume the task:
 
-For each pending task in order:
-
-1. **Read task definition** from the plan file at `progress.json.plan_path`
-
-2. **Update progress.json:** Set task status to `"in_progress"`, add `started_at`
-
-3. **Output progress:**
-   ```
-       → Task <id>: <title>...
+   ```bash
+   $FORGE_CMD task:start --id <id>
    ```
 
-4. **Dispatch subagent:**
-   Use the Superpowers `subagent-driven-development` skill.
-   
-   Provide:
-   - The full task definition (from plan file)
-   - Matching scenarios from `.forge/scenarios.json` (referenced by ID in the task)
-   - Impact analysis from GitNexus (if available)
+2. Use the Superpowers `subagent-driven-development` skill with:
+   - The task definition from the registered plan.
+   - Matching scenarios from `.forge/scenarios.json`.
+   - GitNexus impact context if available.
 
-5. **Run progress-tracking:**
-   Use the Forge `progress-tracking` skill. It will:
-   - Run tests
-   - Auto-fix failures (max 3 rounds)
-   - Git commit on success: `feat: <task-title> [forge task-<id>]`
-   - Update task status to `"done"` in progress.json
-   - Increment `completed_tasks`
-   - **Trigger Guards** if conditions met (see config.json `guards`)
+3. Run tests with coverage:
 
-6. **Output result:**
+   ```bash
+   $FORGE_CMD test --coverage
    ```
-       ✓ Task <id>: done
+
+   For user-facing summaries, say `forge test --coverage`.
+
+4. If tests fail, run up to 3 fix loops. Each loop must report the failing
+   profiles from JSON and re-run `forge test --coverage`. If still failing,
+   run:
+
+   ```bash
+   $FORGE_CMD task:fail --id <id> --reason "<brief reason>"
    ```
-   
-   Or on failure: `✗ Task <id>: failed (<reason>)` and STOP.
 
-7. **Context discipline:** Record ONLY "Task <id>: done" in conversation. Do NOT retain task details.
+   Then stop.
 
-8. **Guard handling:**
-   If progress-tracking triggered a Guard:
-   - Guard passed → continue to next task
-   - Guard failed → STOP. Output guard failure details. Wait for user.
+5. Commit successful task work:
 
-After all tasks `done` → automatically proceed to **Scenario C** (verification).
+   ```bash
+   $FORGE_CMD commit --message "feat: <task-title>" --tag "forge task-<id>"
+   ```
 
----
+   For user-facing summaries, say `forge commit`.
 
-## Scenario C: Full Verification
+6. Mark the task done:
 
-**Trigger:** `status = "executing"`, all tasks have status `"done"` or `"deferred"`.
+   ```bash
+   $FORGE_CMD task:done --id <id>
+   ```
 
-Output:
-```
-▸ Phase 6 · Verification
-    → Running full test suite...
-```
+7. If the JSON reports a guard trigger, run the configured guard action. Record
+   the result:
 
-### Step 1: Run Full Test Suite
+   ```bash
+   $FORGE_CMD guard:record --type <type> --status passed --tasks <ids> --notes "<summary>"
+   ```
 
-1. Read test command from `.forge/config.json` → `test_command`
-2. If empty, auto-detect (same logic as progress-tracking)
-3. Run the full test suite
-4. Capture: pass/fail count, coverage percentage (if available)
+   For user-facing summaries, say `guard:record`. If a guard fails, record
+   `--status failed`, report the blocking details, and stop.
 
-### Step 2: Build Verification
+Record only `Task <id>: done` in long-running context.
 
-Detect and run build command:
-- `package.json` with `scripts.build` → `npm run build`
-- `Cargo.toml` → `cargo build`
-- `go.mod` → `go build ./...`
-- None detected → skip with warning
+## Scenario C: Verification
 
-### Step 3: Coverage Check
+When all tasks are `done` or `deferred`:
 
-Compare coverage against `.forge/config.json` → `test_coverage` targets.
+1. Run:
 
-### Step 4: Update progress.json
+   ```bash
+   $FORGE_CMD phase:complete
+   ```
 
-```json
-{
-  "status": "verification_complete",
-  "verification": {
-    "status": "passed" | "failed",
-    "test_mode": "normal",
-    "last_run": "<ISO-8601>",
-    "report_path": "<optional path to report file>"
-  }
-}
-```
+2. Run:
 
-### Step 5: Report to User
+   ```bash
+   $FORGE_CMD verify --coverage
+   ```
 
-**If passed:**
-```
-    ✓ Tests passing
-    ✓ Build OK
-    ✓ Coverage: <X>% (target: <Y>%)
+   For user-facing summaries, say `forge verify --coverage`.
 
-▸ Verification Complete ✓
-    Run /done to archive this feature.
-```
-
-**If failed:**
-```
-    ✗ Tests failed (<N> failures)
-    Coverage: <X>% (target: <Y>%)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠ Verification failed.
-
-  Failed tests: <list>
-  Fix failing tests and run /next again.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
----
+If verification fails, report the failed test/build JSON details exactly and
+stop. If it passes, tell the user to run `/done`.
 
 ## Error Handling
 
 | Condition | Response |
-|-----------|----------|
-| progress.json missing | "No active feature. Use `/start` first." |
-| Status not recognized | "Unexpected state. Check `.forge/progress.json` for corruption." |
-| writing-plans produces no output | "Plan generation failed. Check spec and scenarios.json for completeness." |
-| Plan file cannot be parsed for tasks | "Could not extract tasks from plan. Verify the plan file uses standard task structure." |
-| All tasks fail | "All tasks failed. Human intervention required." |
-
----
+|---|---|
+| Runtime command returns `ok: false` | Report the JSON error or `blocked_by` exactly and stop. |
+| Plan file cannot be created | `Plan generation failed. Check spec and scenarios.json for completeness.` |
+| Tests still fail after 3 loops | Mark task failed with `task:fail`, report failing profiles, stop. |
+| Guard fails | Record with `guard:record`, report details, stop. |
 
 ## Dependencies
 
-- **Superpowers: writing-plans** — implementation plan generation, writes to `docs/superpowers/plans/`
-- **Superpowers: subagent-driven-development** — per-task execution
-- **Superpowers: requesting-code-review** — used by `batch-review` Guard
-- **Forge: progress-tracking** — post-task state management + Guard trigger
-- **GitNexus** (optional) — dependency analysis and blast radius
+- **Superpowers: writing-plans** — implementation plan generation.
+- **Superpowers: subagent-driven-development** — per-task execution.
+- **Superpowers: requesting-code-review** — guard action when configured.
+- **Forge CLI Runtime** — phase, task, test, commit, guard, verification state.

@@ -2,9 +2,19 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Forge Config",
   "type": "object",
-  "required": ["version", "memory_file", "test_mode", "project_type"],
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "forge_cli_version",
+    "memory_file",
+    "test_mode",
+    "project_type",
+    "test_profiles",
+    "guards"
+  ],
   "properties": {
-    "version": { "type": "string", "const": "1.0" },
+    "version": { "type": "string", "const": "2.0" },
+    "forge_cli_version": { "type": "string", "minLength": 1 },
     "memory_file": {
       "type": "string",
       "enum": ["CLAUDE.md", "AGENTS.md", "GEMINI.md"]
@@ -14,10 +24,9 @@
       "enum": ["normal", "enhanced"]
     },
     "gstack_installed": { "type": "boolean" },
-    "test_command": { "type": "string" },
-    "test_framework": { "type": "string" },
     "test_coverage": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "unit": { "type": "integer", "minimum": 0, "maximum": 100 },
         "integration": { "type": "integer", "minimum": 0, "maximum": 100 },
@@ -28,14 +37,47 @@
       "type": "string",
       "enum": ["new", "existing"]
     },
+    "test_profiles": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["framework", "command", "working_dir"],
+        "properties": {
+          "framework": { "type": "string", "minLength": 1 },
+          "command": { "type": "string", "minLength": 1 },
+          "working_dir": { "type": "string", "minLength": 1 },
+          "coverage_command": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "guards": {
       "type": "object",
       "additionalProperties": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["enabled", "actions"],
         "properties": {
           "enabled": { "type": "boolean" },
           "every_n_tasks": { "type": "integer", "minimum": 1 },
+          "trigger": { "type": "string" },
+          "keywords": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "severity_threshold": { "type": "string" },
+          "license_allowlist": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "budgets": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
           "actions": {
             "type": "array",
             "items": { "type": "string" }

@@ -1,0 +1,24 @@
+{
+  "suites": [
+    {
+      "title": "Login",
+      "specs": [
+        { "title": "logs in with valid credentials", "ok": true, "tests": [{ "status": "passed" }] },
+        { "title": "rejects invalid password", "ok": true, "tests": [{ "status": "passed" }] }
+      ]
+    },
+    {
+      "title": "Dashboard",
+      "specs": [
+        { "title": "loads data", "ok": true, "tests": [{ "status": "passed" }] },
+        { "title": "handles timeout", "ok": false, "tests": [{ "status": "failed" }] }
+      ]
+    }
+  ],
+  "stats": {
+    "expected": 3,
+    "unexpected": 1,
+    "skipped": 0,
+    "duration": 8500
+  }
+}
