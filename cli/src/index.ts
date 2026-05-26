@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { Command, CommanderError } from "commander";
+import { registerAuditCommand } from "./commands/audit.js";
+import { registerCommitCommand } from "./commands/commit.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
 import { registerFeatureCommand } from "./commands/feature.js";
 import { registerGuardCommand } from "./commands/guard.js";
@@ -7,6 +9,7 @@ import { registerInitCommand } from "./commands/init.js";
 import { registerMigrateCommand } from "./commands/migrate.js";
 import { registerPhaseCommand } from "./commands/phase.js";
 import { registerPlanCommand } from "./commands/plan.js";
+import { registerResetCommand } from "./commands/reset.js";
 import { registerSchemaValidateCommand } from "./commands/schema-validate.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerTaskCommand } from "./commands/task.js";
@@ -65,6 +68,9 @@ async function main(argv: string[]): Promise<void> {
   registerGuardCommand(program);
   registerTestCommand(program);
   registerVerifyCommand(program);
+  registerCommitCommand(program);
+  registerAuditCommand(program);
+  registerResetCommand(program);
 
   await program.parseAsync(argv);
 }
