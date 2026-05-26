@@ -2,12 +2,14 @@
 import { Command, CommanderError } from "commander";
 import { registerDoctorCommand } from "./commands/doctor.js";
 import { registerFeatureCommand } from "./commands/feature.js";
+import { registerGuardCommand } from "./commands/guard.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerMigrateCommand } from "./commands/migrate.js";
 import { registerPhaseCommand } from "./commands/phase.js";
 import { registerPlanCommand } from "./commands/plan.js";
 import { registerSchemaValidateCommand } from "./commands/schema-validate.js";
 import { registerStatusCommand } from "./commands/status.js";
+import { registerTaskCommand } from "./commands/task.js";
 
 const VERSION = "0.2.0";
 
@@ -57,6 +59,8 @@ async function main(argv: string[]): Promise<void> {
   registerFeatureCommand(program);
   registerPlanCommand(program);
   registerPhaseCommand(program);
+  registerTaskCommand(program);
+  registerGuardCommand(program);
 
   await program.parseAsync(argv);
 }
