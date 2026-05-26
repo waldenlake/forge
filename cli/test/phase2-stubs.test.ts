@@ -244,21 +244,21 @@ describe("phase 2 stub interfaces", () => {
     });
   });
 
-  test.each([
-    ["scenarios:export", "export"],
-    ["scenarios:import", "import"],
-  ] as const)("%s returns unsupported output", (command, feature) => {
+  test("scenarios:export fails with ok=false when --template is missing", () => {
     withTempProject((cwd) => {
-      const result = runForge(cwd, [command]);
+      const result = runForge(cwd, ["scenarios:export", "--feature", "auth"]);
 
       expect(result.status).toBe(1);
-      expect(parseStdout(result)).toEqual({
-        ok: false,
-        unsupported: true,
-        feature: `scenarios:${feature}`,
-        message:
-          "scenario import/export interfaces exist; implementation is not part of v2 core runtime",
-      });
+      expect(parseStdout(result)).toMatchObject({ ok: false });
+    });
+  });
+
+  test("scenarios:import fails with ok=false when --template is missing", () => {
+    withTempProject((cwd) => {
+      const result = runForge(cwd, ["scenarios:import"]);
+
+      expect(result.status).toBe(1);
+      expect(parseStdout(result)).toMatchObject({ ok: false });
     });
   });
 
