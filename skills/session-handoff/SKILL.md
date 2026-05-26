@@ -5,114 +5,66 @@ description: Prepare cross-session recovery (used by Guard `session-handoff-sugg
 
 # Session Handoff
 
-Internal skill. Called as a Guard action (`session-handoff-suggestion`) or at
-key transition points by other skills.
+Prepare a new session to resume work without relying on conversation history.
 
-## Purpose
+## Forge CLI
 
-Ensure a new session can pick up exactly where work left off, without relying
-on conversation history. All recovery information lives in files.
+Before calling any Forge Runtime command, resolve the executable:
 
----
+```bash
+FORGE_CMD=$(command -v forge 2>/dev/null || echo ".forge/bin/forge")
+```
 
-## Memory File Detection
-
-**All references to "memory file" below mean: read `.forge/config.json` →
-`memory_file` field. This contains the platform-appropriate filename
-(CLAUDE.md / AGENTS.md / GEMINI.md). Use that filename for all read/write
-operations in this skill.**
-
-If `memory_file` is not set in config.json (shouldn't happen after /start),
-fall back to `AGENTS.md`.
-
----
+All Runtime commands output JSON by default. Read the JSON, report blocking
+errors exactly, and do not edit `.forge/*.json` directly.
 
 ## Process
 
-### Step 1: Read Current State
+1. Read current state:
 
-Read `.forge/progress.json` and extract:
-- `feature` — feature slug
-- `completed_tasks` — count of tasks done
-- `total_tasks` — total task count
-- `tasks` — array (find any in_progress or next pending)
-- `guard_history` — recent guard results
+   ```bash
+   $FORGE_CMD status
+   ```
 
-### Step 2: Update Memory File
+   If there is no active feature, report that there is nothing to hand off.
 
-Open the memory file (filename from config.json `memory_file`).
-Find the `## Forge` section. Replace the **Current Feature** subsection (or
-add it if missing) with:
+2. Identify the next task from Runtime JSON:
+   - First `in_progress` task, if present.
+   - Otherwise first `pending` task.
+   - If all tasks are complete, use `next-task-id` as `0` and title
+     `verification`.
 
-**If more tasks remain:**
+3. Write the memory handoff through Runtime:
 
-```markdown
-**Current Feature**
-- Feature: <feature-slug>
-- Progress: <completed_tasks>/<total_tasks> tasks done
-- Next: Task <next-task-id> "<next-task-title>"
-- Run `/resume` in a new session to continue
-```
+   ```bash
+   $FORGE_CMD memory:set-feature --feature <feature> --progress "<completed>/<total> tasks done" --next-task-id <id> --next-task-title "<title>"
+   ```
 
-**If all tasks done:**
+   If JSON returns `verified: false`, report it exactly and stop.
 
-```markdown
-**Current Feature**
-- Feature: <feature-slug>
-- Status: all tasks complete (<total_tasks> tasks done)
-- Next: run `/next` for verification, then `/done` to archive
-```
+4. Output:
 
-Do NOT overwrite other sections of the memory file. Only modify the Current Feature subsection.
+   ```text
+   Progress: <completed>/<total> tasks done
 
-### Step 3: Output to User
+   Recommended next command in a fresh session:
+     /resume
 
-**If more tasks remain:**
+   Continue here:
+     /next
+   ```
 
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Progress: <completed>/<total> tasks done
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Stop. Wait for the user to resume or continue.
 
-Recommend opening a new session to keep context fresh.
+## Error Handling
 
-To continue, run in a new session:
-
-  /resume
-
-Or continue here:
-
-  /next
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-**If all tasks done:**
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-All tasks complete! (<total> done)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Next:
-1. Run /next to trigger verification
-2. After verification passes, run /done to archive
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-### Step 4: Stop
-
-After outputting the message, **STOP**. Wait for the user to:
-- Open a new session and run `/resume`, OR
-- Run `/next` in the current session
-
----
+| Condition | Response |
+|---|---|
+| Runtime command returns `ok: false` | Report JSON error exactly and stop. |
+| Memory verification fails | Report `verified: false` and the memory file path exactly. |
+| Migration required | Tell the user to run `forge migrate --from 1.0 --to 2.0`. |
 
 ## Why New Sessions
 
-Context management is the primary reason:
-- Long sessions with many task results accumulate context
-- A fresh session reads `<memory_file>` and `.forge/progress.json` for instant state recovery
-- Fresh context = more reliable execution
-
-This is a recommendation, not a requirement. The user can continue in the same
-session if they prefer.
+Long execution runs accumulate context. A fresh session can recover from the
+memory file plus Runtime state, while the Runtime remains the source of truth.

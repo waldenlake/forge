@@ -5,89 +5,100 @@ description: Introduction to the Forge orchestration system
 
 # Using Forge
 
-Forge is an AI-driven software development orchestration system. It takes
-requirements and produces correct, trustworthy software through structured
-workflows.
+Forge is an AI-driven software development orchestration system. In v2, the
+Forge CLI Runtime is the source of truth for project state and workflow
+transitions.
+
+## Forge CLI
+
+Before calling any Forge Runtime command, resolve the executable:
+
+```bash
+FORGE_CMD=$(command -v forge 2>/dev/null || echo ".forge/bin/forge")
+```
+
+All Runtime commands output JSON by default. Read the JSON, report blocking
+errors exactly, and do not edit `.forge/*.json` directly.
+
+## Runtime Ownership
+
+Runtime owns reality-changing operations: initialization, migration, feature
+state, phase transitions, task status, guards, verification, memory updates,
+scenario archives, commits, and resets.
+
+Direct edits to `.forge/*.json` are invalid during active Forge work. Skills may
+read JSON files for context, call Superpowers, generate user-facing summaries,
+and write non-Runtime artifacts such as specs and plans when a skill explicitly
+owns them.
+
+## v2 Compatibility
+
+Forge v2 config is not backward-compatible with v1. v2 uses
+`config.json` version `2.0` and `test_profiles`; legacy `test_command` and
+`test_framework` configs must be migrated.
+
+If `forge status` reports `migration_required: true`, run:
+
+```bash
+forge migrate --from 1.0 --to 2.0
+```
+
+Do not hand-edit legacy config into v2 shape.
 
 ## When to Activate
 
 Check for relevant Forge skills when:
-- User wants to build a new feature or project
-- User mentions requirements, PRD, or design specs
-- User wants to fix a bug systematically
-- User asks about project progress or status
-- User wants to resume interrupted work
+- User wants to build a new feature or project.
+- User mentions requirements, PRD, or design specs.
+- User wants to fix a bug systematically.
+- User asks about progress, status, resume, or completion.
 
-## Available Commands
+## Available User Commands
 
 | Command | Purpose |
-|---------|---------|
-| `/start <requirement>` | Begin a new feature: brainstorm → scenarios → confirm |
-| `/next` | Confirm design and execute, or continue next batch |
-| `/resume` | Resume after session interruption |
-| `/done` | Complete feature: verify → archive |
-| `/bugfix <description>` | Lightweight bug fix with regression test |
+|---|---|
+| `/start <requirement>` | Begin a feature: brainstorm, scenarios, review. |
+| `/next` | Confirm design, plan, execute tasks, or verify. |
+| `/resume` | Recover after interruption. |
+| `/done` | Finish, archive, update memory, reset. |
+| `/bugfix <description>` | Regression-test-first bug fix. |
 
-## CRITICAL: Forge Overrides Superpowers Workflow
+## Runtime Commands Used By Skills
 
-When Forge is active (`.forge/progress.json` exists with `status` ≠ `"idle"`),
-all feature development MUST go through Forge commands.
-
-DO NOT directly invoke Superpowers brainstorming, writing-plans, or
-subagent-driven-development for feature work — use `/start`, `/next` instead.
-Forge will call Superpowers internally with proper state tracking.
-
-Direct Superpowers usage is allowed ONLY for:
-- Tasks outside Forge's scope (e.g., one-off refactors not tracked as features)
-- When `.forge/progress.json` does not exist (no active Forge project)
-- When `status` = `"idle"` (between features)
+Core commands include:
+- `forge status`, `forge doctor`, `forge migrate`.
+- `forge init --auto-detect --superpowers-available true|false`.
+- `forge feature:start --feature <slug> --spec <path>`.
+- `forge plan:register --plan <path>`.
+- `forge phase:advance`, `forge phase:complete`, `forge phase:finish`.
+- `forge task:start`, `forge task:done`, `forge task:fail`,
+  `forge task:defer`.
+- `forge guard:preview`, `forge guard:run`, `forge guard:record`,
+  `forge guard:history`.
+- `forge test`, `forge test --coverage`, `forge verify --coverage`.
+- `forge commit`, `forge commit:check`, `forge audit`, `forge reset --backup`.
+- `forge memory:set-feature`, `forge memory:complete-feature`.
+- `forge scenarios:archive`, `forge schema:validate`.
 
 ## How It Works
 
-1. **You describe what to build** → Forge calls Superpowers brainstorming
-2. **Scenarios generated** → You confirm they match your intent
-3. **Plan created** → Forge calls Superpowers writing-plans
-4. **Execution** → Subagents implement each task (TDD)
-5. **Guards** → Quality checks run at configured intervals
-6. **Verification** → Tests run, code reviewed, report generated
-7. **Archive** → Scenarios preserved as project knowledge
+1. `/start` calls Runtime status/init, then Superpowers brainstorming.
+2. Scenarios are generated and validated.
+3. `/next` advances phase, registers the plan, starts tasks, calls Superpowers
+   subagents, runs tests, commits, records guards, and verifies.
+4. `/done` finishes the phase, archives scenarios, updates memory, and resets.
+5. `/resume` reconstructs position from Runtime status, audit, and commit
+   checks.
 
-## State
+## Superpowers Boundary
 
-Forge stores all state in files (never conversation history):
-- `.forge/config.json` — Project configuration (includes `memory_file` field)
-- `.forge/progress.json` — Current feature progress
-- `.forge/scenarios.json` — Current feature's structured scenarios
-- `<memory_file>` — Cross-session memory (CLAUDE.md / AGENTS.md / GEMINI.md, depending on platform)
+Forge may call Superpowers skills internally:
+- `brainstorming` for design specs.
+- `writing-plans` for implementation plans.
+- `subagent-driven-development` for task execution.
+- `test-driven-development` for bug fixes.
+- `requesting-code-review` for guard actions.
 
-Documents (design specs, implementation plans) live in `docs/superpowers/` —
-managed by Superpowers, not Forge.
-
-## Checking Status
-
-To check current forge status, read `.forge/progress.json`:
-- `status: "idle"` → No active feature, user can `/start`
-- `status: "planning"` → Feature being designed, waiting for `/next`
-- `status: "executing"` → Tasks being implemented
-- `status: "verification_complete"` → Ready for `/done`
-- `status: "bugfix"` → Bug fix in progress
-
-If `.forge/progress.json` does not exist, the project has not been initialized.
-The first `/start` will handle initialization automatically.
-
-## Dependencies
-
-Forge requires:
-- **Superpowers** plugin (brainstorming, writing-plans, subagent-driven-development, TDD, code review)
-
-Forge optionally uses:
-- **GitNexus** (codebase analysis, blast radius — for existing projects)
-- **gstack** (enhanced testing — Phase 2)
-
-## Key Principles
-
-- Tests come from human-confirmed scenarios, not AI invention
-- All state in files, context never overflows
-- Quality Guards trigger at configured intervals (replaces fixed batch boundaries)
-- No guessing: ask humans for anything uncertain
-- Reuse existing tools (Superpowers, GitNexus), only orchestrate
+When Forge is active, do not bypass Forge by invoking those skills directly for
+feature work. Use `/start`, `/next`, `/resume`, `/done`, or `/bugfix` so Runtime
+state remains accurate.
