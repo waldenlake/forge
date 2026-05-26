@@ -1,0 +1,8 @@
+{
+  "total": {
+    "lines": { "total": 1000, "covered": 850, "skipped": 0, "pct": 85 },
+    "statements": { "total": 1200, "covered": 1020, "skipped": 0, "pct": 85 },
+    "functions": { "total": 200, "covered": 180, "skipped": 0, "pct": 90 },
+    "branches": { "total": 300, "covered": 240, "skipped": 0, "pct": 80 }
+  }
+}
