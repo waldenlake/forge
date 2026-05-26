@@ -49,7 +49,20 @@ describe("release metadata", () => {
     expect(docs).toContain(
       'node "%USERPROFILE%\\.config\\opencode\\plugins\\forge\\cli\\dist\\index.js" migrate --from 1.0 --to 2.0',
     );
-    expect(docs).toContain("OpenCode installer only builds the plugin runtime");
+    expect(docs).toContain(
+      "OpenCode skills can invoke the plugin runtime directly",
+    );
+  });
+
+  test("documents the scenarios artifact exception to Runtime-owned JSON", () => {
+    const readme = readText("README.md");
+    const openCodeInstall = readText(".opencode/INSTALL.md");
+    const usingForge = readText("skills/using-forge/SKILL.md");
+    const docs = `${readme}\n${openCodeInstall}\n${usingForge}`;
+
+    expect(docs).toContain("Runtime-owned `.forge/*.json`");
+    expect(docs).toMatch(/the `scenarios` skill is the narrow exception/i);
+    expect(docs).toContain("forge schema:validate");
   });
 
   test("Windows OpenCode installer restores directory before build failure exits", () => {

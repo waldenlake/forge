@@ -14,7 +14,7 @@ transitions.
 Before calling any Forge Runtime command, resolve the executable:
 
 ```bash
-FORGE_CMD=$(command -v forge 2>/dev/null || echo ".forge/bin/forge")
+FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/plugins/forge/cli/dist/index.js" ]; then echo "node $HOME/.config/opencode/plugins/forge/cli/dist/index.js"; else echo ".forge/bin/forge"; fi; })
 ```
 
 All Runtime commands output JSON by default. Read the JSON, report blocking
@@ -30,6 +30,12 @@ Direct edits to `.forge/*.json` are invalid during active Forge work. Skills may
 read JSON files for context, call Superpowers, generate user-facing summaries,
 and write non-Runtime artifacts such as specs and plans when a skill explicitly
 owns them.
+
+Exception: the `scenarios` skill owns the first creation of
+`.forge/scenarios.json` from a confirmed design spec. The calling workflow must
+immediately validate that artifact with `forge schema:validate --file
+.forge/scenarios.json`; later Runtime state changes and scenario archives still
+belong to the CLI.
 
 ## v2 Compatibility
 

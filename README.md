@@ -139,12 +139,16 @@ Forge's state files conform to JSON Schemas in the `schemas/` directory:
 - `schemas/scenarios.schema.json` — `.forge/scenarios.json` structure
 
 These define exact required fields, enum values, and types. Forge skills must
-not directly edit `.forge/*.json`; use the CLI runtime so migrations,
-validation, and compatibility checks run consistently.
+not directly edit Runtime-owned `.forge/*.json`; use the CLI runtime so
+migrations, validation, and compatibility checks run consistently. The
+`scenarios` skill is the narrow exception that creates `.forge/scenarios.json`
+from the confirmed spec, and the workflow validates it immediately with
+`forge schema:validate`.
 
 Skills resolve a global `forge` first and a project `.forge/bin/forge` second.
-The OpenCode installer only builds the plugin runtime; it does not install a
-global binary or create a project shim.
+Between those two, OpenCode skills can invoke the plugin runtime directly at
+`~/.config/opencode/plugins/forge/cli/dist/index.js`, so `/start` can run before
+project initialization creates a shim.
 
 ## Philosophy
 
