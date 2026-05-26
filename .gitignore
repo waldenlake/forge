@@ -30,5 +30,3 @@ __pycache__/
 # Runtime project files (created by forge in user projects, not in this repo)
 .forge/
 
-# Internal docs (design specs, plans, reviews — not part of the plugin distribution, do not add, commit and push to git)
-docs/
