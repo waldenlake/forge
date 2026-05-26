@@ -13,9 +13,10 @@ export type CoverageCheckResult = {
   coverage: {
     unit?: CoverageMetric;
     integration?: CoverageMetric;
+    e2e_p0?: { all_passing: boolean };
   };
   report_path: string | null;
-  format: 'istanbul' | 'unknown';
+  format: 'istanbul' | 'lcov' | 'unknown';
 };
 
 export type IstanbulMetrics = {
@@ -58,6 +59,7 @@ function findCoverageReport(cwd: string): string | null {
   const candidates = [
     join(cwd, 'coverage', 'coverage-summary.json'),
     join(cwd, 'coverage', 'coverage-final.json'),
+    join(cwd, 'coverage', 'lcov.info'),
   ];
 
   for (const candidate of candidates) {
@@ -88,6 +90,16 @@ export function checkCoverage(
     };
   }
 
+  // lcov.info detected but not parsed in this round
+  if (resolvedPath.endsWith('lcov.info')) {
+    return {
+      ok: false,
+      coverage: {},
+      report_path: resolvedPath,
+      format: 'lcov',
+    };
+  }
+
   const content = readFileSync(resolvedPath, 'utf8');
   const metrics = parseIstanbulSummary(content);
 
@@ -103,6 +115,8 @@ export function checkCoverage(
   const coverage: CoverageCheckResult['coverage'] = {};
   let allOk = true;
 
+  // unit coverage = line coverage percentage (Istanbul standard)
+  // integration coverage = branch coverage percentage
   if (targets.unit !== undefined) {
     coverage.unit = makeMetric(metrics.lines, targets.unit);
     if (!coverage.unit.ok) allOk = false;
