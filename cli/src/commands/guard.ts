@@ -1,11 +1,29 @@
 import type { Command } from "commander";
-import { nowIso, readProgress, writeProgress } from "../state/progress.js";
+import { triggeredGuards } from "../lib/guard.js";
+import { readConfig } from "../state/config.js";
+import {
+  type ForgeProgress,
+  type ForgeTask,
+  nowIso,
+  readProgress,
+  writeProgress,
+} from "../state/progress.js";
 
 type GuardRecordOptions = {
   type: string;
   status: string;
   tasks: string;
   notes?: string;
+};
+
+type GuardPreviewOptions = {
+  nextTaskId: string;
+  nextTaskTitle: string;
+};
+
+type GuardRunOptions = {
+  type: string;
+  taskId: string;
 };
 
 function writeJson(payload: unknown): void {
@@ -40,7 +58,92 @@ function guardStatus(
   return null;
 }
 
+function parsePositiveInteger(value: string): number | null {
+  const id = Number(value);
+
+  if (!Number.isInteger(id) || id < 1) {
+    return null;
+  }
+
+  return id;
+}
+
+function previewProgress(progress: ForgeProgress, task: ForgeTask): ForgeProgress {
+  const tasks = progress.tasks.some((item) => item.id === task.id)
+    ? progress.tasks.map((item) => (item.id === task.id ? task : item))
+    : [...progress.tasks, task];
+
+  return {
+    ...progress,
+    tasks,
+    completed_tasks: tasks.filter((item) => item.status === "done").length,
+  };
+}
+
 export function registerGuardCommand(program: Command): void {
+  program
+    .command("guard:preview")
+    .requiredOption("--next-task-id <id>", "next task id")
+    .requiredOption("--next-task-title <title>", "next task title")
+    .action((options: GuardPreviewOptions) => {
+      const id = parsePositiveInteger(options.nextTaskId);
+      if (id === null) {
+        fail(`invalid task id: ${options.nextTaskId}`);
+        return;
+      }
+
+      const cwd = process.cwd();
+      const progress = readProgress(cwd);
+      const task: ForgeTask = {
+        id,
+        title: options.nextTaskTitle,
+        status: "done",
+      };
+      const guards = triggeredGuards(
+        readConfig(cwd),
+        previewProgress(progress, task),
+        task,
+      );
+
+      writeJson({
+        ok: true,
+        guard_triggered: guards.length > 0,
+        guards,
+        guard_type: guards[0]?.type ?? null,
+      });
+    });
+
+  program
+    .command("guard:run")
+    .requiredOption("--type <type>", "guard type")
+    .requiredOption("--task-id <id>", "task id")
+    .action((options: GuardRunOptions) => {
+      const id = parsePositiveInteger(options.taskId);
+      if (id === null) {
+        fail(`invalid task id: ${options.taskId}`);
+        return;
+      }
+
+      process.exitCode = 1;
+      writeJson({
+        ok: false,
+        unsupported: true,
+        feature: options.type,
+        task_id: id,
+        message: `${options.type} interface exists; scanner implementation is not part of v2 core runtime`,
+      });
+    });
+
+  program.command("guard:coverage-check").action(() => {
+    process.exitCode = 1;
+    writeJson({
+      ok: false,
+      unsupported: true,
+      feature: "coverage-check",
+      message: "coverage parser is not configured or implemented in v2 core runtime",
+    });
+  });
+
   program
     .command("guard:record")
     .requiredOption("--type <type>", "guard type")
