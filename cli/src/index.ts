@@ -18,6 +18,7 @@ import { registerStatusCommand } from "./commands/status.js";
 import { registerTaskCommand } from "./commands/task.js";
 import { registerTestCommand } from "./commands/test.js";
 import { registerVerifyCommand } from "./commands/verify.js";
+import { initLogger, getLogger } from "./lib/logger.js";
 
 const VERSION = "0.2.0";
 
@@ -44,6 +45,7 @@ async function main(argv: string[]): Promise<void> {
       writeOut: (value) => process.stdout.write(value),
       writeErr: () => undefined,
     })
+    .option("--log-file <path>", "write structured JSONL log to file")
     .option("--version-json", "print machine-readable version compatibility JSON")
     .action(() => {
       const options = program.opts<{ versionJson?: boolean }>();
@@ -77,6 +79,17 @@ async function main(argv: string[]): Promise<void> {
   registerAuditCommand(program);
   registerResetCommand(program);
   registerMemoryCommand(program);
+
+  program.hook("preAction", (_thisCommand, actionCommand) => {
+    const opts = program.opts<{ logFile?: string }>();
+    const logger = initLogger(opts.logFile ?? null);
+    logger.log({ cmd: actionCommand.name(), event: "start", args: actionCommand.args });
+  });
+
+  program.hook("postAction", (_thisCommand, actionCommand) => {
+    const logger = getLogger();
+    logger.log({ cmd: actionCommand.name(), event: "result", exitCode: process.exitCode ?? 0 });
+  });
 
   await program.parseAsync(argv);
 }
