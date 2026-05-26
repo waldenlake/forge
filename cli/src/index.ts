@@ -10,6 +10,8 @@ import { registerPlanCommand } from "./commands/plan.js";
 import { registerSchemaValidateCommand } from "./commands/schema-validate.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerTaskCommand } from "./commands/task.js";
+import { registerTestCommand } from "./commands/test.js";
+import { registerVerifyCommand } from "./commands/verify.js";
 
 const VERSION = "0.2.0";
 
@@ -61,6 +63,8 @@ async function main(argv: string[]): Promise<void> {
   registerPhaseCommand(program);
   registerTaskCommand(program);
   registerGuardCommand(program);
+  registerTestCommand(program);
+  registerVerifyCommand(program);
 
   await program.parseAsync(argv);
 }
