@@ -15,9 +15,10 @@ Forge ships as a single repo with both a plugin and skills. The install
 script wires it into both systems in one shot:
 
 1. Clones the forge repo into `~/.config/opencode/plugins/forge/`
-2. Drops a `forge.mjs` bridge file into `~/.config/opencode/plugins/` that
+2. Builds the Forge v2 CLI Runtime from `cli/`
+3. Drops a `forge.mjs` bridge file into `~/.config/opencode/plugins/` that
    re-exports the real plugin (so the plugin loader picks it up)
-3. Creates a directory junction (Windows) or symlink (Unix) for each forge
+4. Creates a directory junction (Windows) or symlink (Unix) for each forge
    skill under `~/.config/opencode/skills/<name>` (so `/skills` lists them)
 
 ## Prerequisites
@@ -25,6 +26,7 @@ script wires it into both systems in one shot:
 - [OpenCode](https://opencode.ai/) installed
 - [Superpowers](https://github.com/obra/superpowers) plugin installed
 - Git
+- Node.js 20+
 
 ## Install
 
@@ -68,6 +70,16 @@ Restart OpenCode after install.
 
 ## Verify
 
+Forge v2 has a CLI Runtime. Verify the install with:
+
+```bash
+node ~/.config/opencode/plugins/forge/cli/dist/index.js doctor
+```
+
+```cmd
+node "%USERPROFILE%\.config\opencode\plugins\forge\cli\dist\index.js" doctor
+```
+
 In OpenCode, ask:
 
 ```
@@ -76,6 +88,26 @@ list available skills
 
 You should see Forge skills: `using-forge`, `start`, `next`, `resume`, `done`,
 `bugfix`, `scenarios`, `progress-tracking`, `session-handoff`.
+
+## Upgrading From v1
+
+Forge v2 does not accept `config.json` v1 projects. Upgrade old projects before
+using Forge v2:
+
+```bash
+node ~/.config/opencode/plugins/forge/cli/dist/index.js migrate --from 1.0 --to 2.0
+```
+
+```cmd
+node "%USERPROFILE%\.config\opencode\plugins\forge\cli\dist\index.js" migrate --from 1.0 --to 2.0
+```
+
+Skills must not directly edit `.forge/*.json`; use the CLI runtime so state
+validation, migrations, and compatibility checks stay consistent.
+
+Skills resolve a global `forge` first and a project `.forge/bin/forge` second.
+The OpenCode installer only builds the plugin runtime; it does not install a
+global binary or create a project shim.
 
 ## Update
 

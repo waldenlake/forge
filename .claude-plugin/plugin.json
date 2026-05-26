@@ -1,7 +1,11 @@
 {
   "name": "forge",
   "description": "AI-driven software development orchestration — from requirements to trustworthy, tested software",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "install": {
+    "script": "cli/install.sh",
+    "description": "Install forge CLI runtime"
+  },
   "author": {
     "name": "forge contributors"
   },
