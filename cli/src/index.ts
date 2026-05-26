@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import { Command, CommanderError } from "commander";
+import { registerDoctorCommand } from "./commands/doctor.js";
+import { registerInitCommand } from "./commands/init.js";
+import { registerMigrateCommand } from "./commands/migrate.js";
 import { registerSchemaValidateCommand } from "./commands/schema-validate.js";
-import type { CliJson } from "./types.js";
+import { registerStatusCommand } from "./commands/status.js";
 
 const VERSION = "0.2.0";
 
-function writeJson(payload: CliJson): void {
+function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
 }
 
@@ -43,6 +46,10 @@ async function main(argv: string[]): Promise<void> {
       program.help();
     });
 
+  registerInitCommand(program);
+  registerStatusCommand(program);
+  registerDoctorCommand(program);
+  registerMigrateCommand(program);
   registerSchemaValidateCommand(program);
 
   await program.parseAsync(argv);
