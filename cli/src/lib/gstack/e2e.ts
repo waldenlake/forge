@@ -67,10 +67,10 @@ export function runE2e(cwd: string, configPath?: string): GstackE2eResult {
   const command = args.join(' ');
   const result = runShellCommand(cwd, '.', command);
 
-  // Playwright JSON reporter writes to stdout
+  // Playwright JSON reporter writes to stdout; no file is written to disk
   if (result.stdout) {
     const parsed = parsePlaywrightReport(result.stdout);
-    parsed.report_path = reportFile;
+    parsed.report_path = null;
     return parsed;
   }
 

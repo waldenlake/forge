@@ -1,10 +1,25 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   parsePlaywrightReport,
+  runE2e,
   type GstackE2eResult,
 } from '../src/lib/gstack/e2e.js';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdtempSync } from 'node:fs';
+import { resolve, join } from 'node:path';
+import { tmpdir } from 'node:os';
+
+vi.mock('../src/lib/runner.js', () => ({
+  runShellCommand: vi.fn(() => ({
+    ok: false,
+    command: '',
+    cwd: '',
+    status: 127,
+    stdout: '',
+    stderr: 'npx: command not found',
+    duration_ms: 0,
+  })),
+}));
 
 const fixturePath = resolve(import.meta.dirname, 'fixtures/playwright-report.json');
 
@@ -42,5 +57,20 @@ describe('gstack e2e runner', () => {
       expect(result.failed).toBe(0);
       expect(result.passed).toBe(0);
     });
+  });
+});
+
+const tempDir = () => mkdtempSync(join(tmpdir(), 'forge-e2e-'));
+
+describe('runE2e', () => {
+  it('returns error result when Playwright is not available', () => {
+    const dir = tempDir();
+    const result = runE2e(dir);
+
+    // Since Playwright is not installed in test environment, expect failure
+    expect(result.type).toBe('e2e');
+    expect(result.ok).toBe(false);
+    expect(result.report_path).toBeNull();
+    expect(result.error).toBeDefined();
   });
 });

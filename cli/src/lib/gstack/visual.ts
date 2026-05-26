@@ -124,15 +124,19 @@ export function updateBaselines(cwd: string): { ok: boolean; updated: number } {
     return { ok: false, updated: 0 };
   }
 
-  mkdirSync(baselines, { recursive: true });
-  const files = readdirSync(screenshots).filter((f) => f.endsWith('.png'));
+  try {
+    mkdirSync(baselines, { recursive: true });
+    const files = readdirSync(screenshots).filter((f) => f.endsWith('.png'));
 
-  for (const file of files) {
-    const src = readFileSync(join(screenshots, file));
-    writeFileSync(join(baselines, file), src);
+    for (const file of files) {
+      const src = readFileSync(join(screenshots, file));
+      writeFileSync(join(baselines, file), src);
+    }
+
+    return { ok: true, updated: files.length };
+  } catch {
+    return { ok: false, updated: 0 };
   }
-
-  return { ok: true, updated: files.length };
 }
 
 export function runVisual(
