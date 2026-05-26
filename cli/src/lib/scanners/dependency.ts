@@ -10,7 +10,7 @@ export type DependencyAuditResult = { ok: boolean; packages: PackageAuditResult[
 export function extractNewPackagesFromDiff(diff: string): string[] {
   const added: string[] = [];
   const removed = new Set<string>();
-  const pattern = /^[+-]\s*"([^"@][^"]*)":\s*"[^"]+"/;
+  const pattern = /^[+-]\s*"([^"]+)":\s*"[^"]+"/;
   for (const line of diff.split('\n')) {
     if (line.startsWith('+++') || line.startsWith('---')) continue;
     if (!line.startsWith('+') && !line.startsWith('-')) continue;
@@ -37,8 +37,12 @@ export function checkLicenses(cwd: string, packageNames: string[], allowlist: st
 
 export function parseNpmAuditJson(output: string): VulnerabilityInfo[] {
   try {
-    const parsed = JSON.parse(output) as { vulnerabilities?: Record<string, { name: string; severity?: string }> };
-    return Object.values(parsed.vulnerabilities ?? {}).map(v => ({ name: v.name, vulnerabilities: 1, highest_severity: v.severity }));
+    const parsed = JSON.parse(output) as { vulnerabilities?: Record<string, { name: string; severity?: string; via?: unknown[] }> };
+    return Object.values(parsed.vulnerabilities ?? {}).map(v => ({
+      name: v.name,
+      vulnerabilities: Array.isArray(v.via) ? (v.via.filter(item => typeof item === 'object' && item !== null).length || 1) : 1,
+      highest_severity: v.severity,
+    }));
   } catch { return []; }
 }
 

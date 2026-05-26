@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractNewPackagesFromDiff, checkLicenses, parseNpmAuditJson } from '../src/lib/scanners/dependency.js';
+import { extractNewPackagesFromDiff, checkLicenses, parseNpmAuditJson, runDependencyAudit } from '../src/lib/scanners/dependency.js';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -49,5 +49,25 @@ describe('dependency audit scanner', () => {
     it('handles malformed JSON', () => {
       expect(parseNpmAuditJson('not json')).toEqual([]);
     });
+  });
+});
+
+describe('runDependencyAudit', () => {
+  it('audits packages and returns structured result', () => {
+    const dir = tempDir();
+    mkdirSync(join(dir, 'node_modules', 'express'), { recursive: true });
+    writeFileSync(
+      join(dir, 'node_modules', 'express', 'package.json'),
+      JSON.stringify({ name: 'express', version: '4.18.0', license: 'MIT' }),
+    );
+    writeFileSync(join(dir, 'package.json'), '{}');
+
+    const result = runDependencyAudit(dir, ['express'], ['MIT', 'ISC', 'Apache-2.0']);
+
+    expect(result.ok).toBe(true);
+    expect(result.new_packages_detected).toEqual(['express']);
+    expect(result.packages).toHaveLength(1);
+    expect(result.packages[0].license_ok).toBe(true);
+    expect(result.scanner).toBeDefined();
   });
 });
