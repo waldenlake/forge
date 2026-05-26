@@ -179,39 +179,37 @@ describe("phase 2 stub interfaces", () => {
     });
   });
 
-  test("guard:run returns unsupported scanner interface output", () => {
+  test("guard:run delegates non-scanner types with ok=true", () => {
     withTempProject((cwd) => {
+      writeConfig(cwd);
+
       const result = runForge(cwd, [
         "guard:run",
         "--type",
-        "security-scan",
+        "batch-review",
         "--task-id",
         "5",
       ]);
 
-      expect(result.status).toBe(1);
-      expect(parseStdout(result)).toEqual({
-        ok: false,
-        unsupported: true,
-        feature: "security-scan",
-        task_id: 5,
-        message:
-          "security-scan interface exists; scanner implementation is not part of v2 core runtime",
+      expect(result.status).toBe(0);
+      expect(parseStdout(result)).toMatchObject({
+        ok: true,
+        delegated: true,
+        type: "batch-review",
       });
     });
   });
 
-  test("guard:coverage-check returns unsupported parser output", () => {
+  test("guard:coverage-check returns ok=false when no coverage report exists", () => {
     withTempProject((cwd) => {
+      writeConfig(cwd);
+
       const result = runForge(cwd, ["guard:coverage-check"]);
 
       expect(result.status).toBe(1);
-      expect(parseStdout(result)).toEqual({
+      expect(parseStdout(result)).toMatchObject({
         ok: false,
-        unsupported: true,
-        feature: "coverage-check",
-        message:
-          "coverage parser is not configured or implemented in v2 core runtime",
+        report_path: null,
       });
     });
   });

@@ -1,5 +1,11 @@
+import { join } from "node:path";
 import type { Command } from "commander";
+import { git } from "../lib/git.js";
 import { triggeredGuards } from "../lib/guard.js";
+import { checkCoverage } from "../lib/scanners/coverage.js";
+import { extractNewPackagesFromDiff, runDependencyAudit } from "../lib/scanners/dependency.js";
+import { scanFiles } from "../lib/scanners/security.js";
+import type { Severity } from "../lib/scanners/security.js";
 import { readConfig } from "../state/config.js";
 import {
   type ForgeProgress,
@@ -124,25 +130,96 @@ export function registerGuardCommand(program: Command): void {
         return;
       }
 
-      process.exitCode = 1;
+      const cwd = process.cwd();
+      const config = readConfig(cwd);
+      const type = options.type;
+
+      if (type === "security-scan") {
+        const guardConfig = config.guards["security-scan"];
+        const threshold = (guardConfig?.severity_threshold ?? "HIGH") as Severity;
+        const gitResult = git(cwd, ["diff", "--name-only", "HEAD~1"]);
+        const files = gitResult.ok
+          ? gitResult.stdout.split("\n").filter((f) => f.length > 0).map((f) => join(cwd, f))
+          : [];
+        const result = scanFiles(files, { severityThreshold: threshold });
+        if (!result.ok) process.exitCode = 1;
+        writeJson(result);
+        return;
+      }
+
+      if (type === "dependency-audit") {
+        const guardConfig = config.guards["dependency-audit"];
+        const allowlist = guardConfig?.license_allowlist ?? ["MIT", "Apache-2.0", "ISC"];
+        const diffResult = git(cwd, ["diff", "HEAD~1", "--", "package.json"]);
+        const newPkgs = diffResult.ok ? extractNewPackagesFromDiff(diffResult.stdout) : [];
+        const result = runDependencyAudit(cwd, newPkgs, allowlist);
+        if (!result.ok) process.exitCode = 1;
+        writeJson(result);
+        return;
+      }
+
+      if (type === "coverage-gate") {
+        const unitTarget = config.test_coverage?.unit ?? 80;
+        const integrationTarget = config.test_coverage?.integration ?? 60;
+        const result = checkCoverage(cwd, { unit: unitTarget, integration: integrationTarget });
+        if (!result.ok) process.exitCode = 1;
+        writeJson(result);
+        return;
+      }
+
+      // Delegated types: batch-review, human-review, etc.
       writeJson({
-        ok: false,
-        unsupported: true,
-        feature: options.type,
-        task_id: id,
-        message: `${options.type} interface exists; scanner implementation is not part of v2 core runtime`,
+        ok: true,
+        delegated: true,
+        type,
+        message: `${type} requires human or external agent review`,
       });
     });
 
   program.command("guard:coverage-check").action(() => {
-    process.exitCode = 1;
-    writeJson({
-      ok: false,
-      unsupported: true,
-      feature: "coverage-check",
-      message: "coverage parser is not configured or implemented in v2 core runtime",
-    });
+    const cwd = process.cwd();
+    const config = readConfig(cwd);
+    const unitTarget = config.test_coverage?.unit ?? 80;
+    const integrationTarget = config.test_coverage?.integration ?? 60;
+    const result = checkCoverage(cwd, { unit: unitTarget, integration: integrationTarget });
+    if (!result.ok) process.exitCode = 1;
+    writeJson(result);
   });
+
+  program
+    .command("guard:security-scan")
+    .option("--files <paths>", "comma-separated file paths to scan")
+    .action((options: { files?: string }) => {
+      const cwd = process.cwd();
+      const config = readConfig(cwd);
+      const guardConfig = config.guards["security-scan"];
+      const threshold = (guardConfig?.severity_threshold ?? "HIGH") as Severity;
+      const files = (options.files ?? "")
+        .split(",")
+        .map((f) => f.trim())
+        .filter(Boolean)
+        .map((f) => join(cwd, f));
+      const result = scanFiles(files, { severityThreshold: threshold });
+      if (!result.ok) process.exitCode = 1;
+      writeJson(result);
+    });
+
+  program
+    .command("guard:dependency-audit")
+    .option("--new-packages <names>", "comma-separated package names to audit")
+    .action((options: { newPackages?: string }) => {
+      const cwd = process.cwd();
+      const config = readConfig(cwd);
+      const guardConfig = config.guards["dependency-audit"];
+      const allowlist = guardConfig?.license_allowlist ?? ["MIT", "Apache-2.0", "ISC"];
+      const newPkgs = (options.newPackages ?? "")
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean);
+      const result = runDependencyAudit(cwd, newPkgs, allowlist);
+      if (!result.ok) process.exitCode = 1;
+      writeJson(result);
+    });
 
   program
     .command("guard:record")
