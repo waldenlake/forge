@@ -1,4 +1,6 @@
 import type { Command } from "commander";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { runShellCommand, type ShellCommandResult } from "../lib/runner.js";
 import { readConfig, type ForgeConfig, type TestProfile } from "../state/config.js";
 
@@ -120,6 +122,9 @@ export function registerTestCommand(program: Command): void {
         profileNames,
         coverage: options.coverage ?? false,
       });
+
+      const marker = { ok: result.ok, at: new Date().toISOString(), passed: result.passed, failed: result.failed };
+      writeFileSync(join(cwd, ".forge", "last-test.json"), JSON.stringify(marker), "utf8");
 
       if (!result.ok) {
         process.exitCode = 1;

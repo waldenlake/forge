@@ -12,6 +12,7 @@ const forgeHeading = /^## Forge[^\S\r\n]*(?:\r?\n|$)/m;
 const nextHeading = /^## [^\r\n]+[^\S\r\n]*$/m;
 const currentFeature = /^\*\*Current Feature:?\*\*[^\S\r\n]*(?:\r?\n|$)/m;
 const completedFeatures = /^\*\*Completed Features:?\*\*[^\S\r\n]*(?:\r?\n|$)/m;
+const workflowRules = /^\*\*Workflow Rules:?\*\*[^\S\r\n]*(?:\r?\n|$)/m;
 
 export function memoryPath(cwd: string, config: ForgeConfig): string {
   return join(cwd, config.memory_file);
@@ -82,6 +83,41 @@ function removeCurrentFeature(section: string): string {
   return [before, after.replace(/^\s*\n/, "")]
     .filter((part) => part.length > 0)
     .join("\n\n");
+}
+
+function removeWorkflowRules(section: string): string {
+  const match = workflowRules.exec(section);
+  if (!match) {
+    return section;
+  }
+
+  const before = section.slice(0, match.index).replace(/\s+$/, "");
+  const afterRules = section.slice(match.index + match[0].length);
+  const nextBold = /^\*\*[^\r\n]+\*\*[^\S\r\n]*(?:\r?\n|$)/m.exec(afterRules);
+  const after = nextBold ? afterRules.slice(nextBold.index) : "";
+
+  return [before, after.replace(/^\s*\n/, "")]
+    .filter((part) => part.length > 0)
+    .join("\n\n");
+}
+
+export function replaceWorkflowRules(content: string, block: string): string {
+  return updateForgeSection(content, (section) => {
+    const withoutRules = removeWorkflowRules(section);
+    const replacement = formattedBlock(block);
+
+    if (withoutRules.trim().length === 0) {
+      return `\n${replacement}`;
+    }
+
+    return `\n${replacement}${withoutRules.replace(/^\s*\n/, "")}`;
+  });
+}
+
+export function clearWorkflowRules(content: string): string {
+  return updateForgeSection(content, (section) => {
+    return removeWorkflowRules(section);
+  });
 }
 
 export function replaceCurrentFeature(content: string, block: string): string {

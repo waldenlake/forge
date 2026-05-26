@@ -102,6 +102,14 @@ function writeProgress(cwd: string, progress: ForgeProgress): void {
   );
 }
 
+function writeLastTest(cwd: string, ok = true): void {
+  writeFileSync(
+    join(cwd, ".forge", "last-test.json"),
+    JSON.stringify({ ok, at: new Date().toISOString(), passed: [], failed: [] }),
+    "utf8",
+  );
+}
+
 function executingProgress(overrides: Partial<ForgeProgress> = {}): ForgeProgress {
   return {
     ...idleProgress(),
@@ -130,6 +138,7 @@ describe("git, audit, and reset commands", () => {
   test("commit --message --tag stages all changes and commits with the forge tag", () => {
     withTempGitRepo((cwd) => {
       writeFileSync(join(cwd, "x.txt"), "x\n", "utf8");
+      writeLastTest(cwd);
 
       const result = runForge(cwd, [
         "commit",
@@ -189,6 +198,7 @@ describe("git, audit, and reset commands", () => {
 
   test("commit returns nothing to commit when the worktree is clean", () => {
     withTempGitRepo((cwd) => {
+      writeLastTest(cwd);
       commitFile(cwd, "initial.txt", "initial\n", "Initial commit");
 
       const result = runForge(cwd, [

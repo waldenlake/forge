@@ -1,6 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
+import { readConfig } from "../state/config.js";
 import {
   type ForgeProgress,
   idleProgress,
@@ -8,6 +9,7 @@ import {
   readProgress,
   writeProgress,
 } from "../state/progress.js";
+import { clearWorkflowRules, memoryPath } from "../state/memory.js";
 
 type ScenarioFile = {
   scenarios?: Array<{
@@ -133,6 +135,19 @@ export function registerPhaseCommand(program: Command): void {
     }
 
     writeProgress(cwd, idleProgress());
+
+    try {
+      const config = readConfig(cwd);
+      const file = memoryPath(cwd, config);
+      if (existsSync(file)) {
+        const content = readFileSync(file, "utf8");
+        const cleaned = clearWorkflowRules(content);
+        if (cleaned !== content) writeFileSync(file, cleaned, "utf8");
+      }
+    } catch {
+      // Non-fatal
+    }
+
     writeJson({
       ok: true,
       from: "verification_complete",

@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { triggeredGuards } from "../lib/guard.js";
+import { findTaskCommit, isGitRepo } from "../lib/git.js";
 import { readConfig } from "../state/config.js";
 import {
   type ForgeProgress,
@@ -157,6 +158,14 @@ export function registerTaskCommand(program: Command): void {
       if (task.status !== "pending" && task.status !== "in_progress") {
         fail(`task ${id} is ${task.status}, expected pending or in_progress`);
         return;
+      }
+
+      if (isGitRepo(cwd)) {
+        const commit = findTaskCommit(cwd, id);
+        if (!commit) {
+          fail(`task ${id} has no commit tagged [forge task-${id}]. Run: forge commit --message "feat: <title>" --tag "forge task-${id}"`);
+          return;
+        }
       }
 
       const completedAt = nowIso();

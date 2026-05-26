@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   commitAll,
@@ -85,6 +85,16 @@ function requireCommitRoot(cwd: string): boolean {
   return true;
 }
 
+function recentTestResult(cwd: string): { ok: boolean; stale: boolean } | null {
+  const p = resolve(cwd, ".forge", "last-test.json");
+  if (!existsSync(p)) return null;
+  try {
+    const data = JSON.parse(readFileSync(p, "utf8"));
+    const age = Date.now() - new Date(data.at).getTime();
+    return { ok: data.ok, stale: age > 5 * 60 * 1000 };
+  } catch { return null; }
+}
+
 export function registerCommitCommand(program: Command): void {
   program
     .command("commit")
@@ -93,6 +103,20 @@ export function registerCommitCommand(program: Command): void {
     .action((options: CommitOptions) => {
       const cwd = process.cwd();
       if (!requireCommitRoot(cwd)) {
+        return;
+      }
+
+      const testResult = recentTestResult(cwd);
+      if (!testResult) {
+        fail("no test results found. Run: forge test --coverage");
+        return;
+      }
+      if (!testResult.ok) {
+        fail("last test run failed. Fix tests and re-run: forge test --coverage");
+        return;
+      }
+      if (testResult.stale) {
+        fail("test results are stale (>5 min). Re-run: forge test --coverage");
         return;
       }
 
