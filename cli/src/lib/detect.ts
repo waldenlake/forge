@@ -1,5 +1,6 @@
-import { accessSync, constants, existsSync, readFileSync } from "node:fs";
-import { delimiter, join } from "node:path";
+import { accessSync, constants, existsSync, readFileSync, readdirSync } from "node:fs";
+import { delimiter, join, relative, sep } from "node:path";
+import { parse as parseYaml } from "yaml";
 import type { MemoryFile, ProjectType, TestProfile } from "../state/config.js";
 
 type PackageJson = {
@@ -135,6 +136,167 @@ export function detectTestProfiles(cwd: string): Record<string, TestProfile> {
       working_dir: ".",
     },
   };
+}
+
+export type MonorepoDetectResult = {
+  monorepo: boolean;
+  monorepo_type: "pnpm" | "lerna" | "nx" | "turbo" | "yarn" | null;
+  detected_profiles: Array<{
+    name: string;
+    framework: string;
+    working_dir: string;
+    command: string;
+    coverage_command?: string;
+  }>;
+};
+
+type WorkspacePackageJson = PackageJson & {
+  name?: string;
+  workspaces?: string[] | { packages: string[] };
+};
+
+function resolveGlobDirs(cwd: string, pattern: string): string[] {
+  // Support simple patterns like "packages/*" or "apps/*"
+  // Only handles one-level wildcard (the common case for monorepos)
+  const normalized = pattern.replace(/\\/g, "/").replace(/\/?$/, "");
+
+  if (normalized.endsWith("/*")) {
+    const parentDir = normalized.slice(0, -2);
+    const parentPath = join(cwd, parentDir);
+
+    if (!existsSync(parentPath)) {
+      return [];
+    }
+
+    try {
+      return readdirSync(parentPath, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => join(parentPath, entry.name));
+    } catch {
+      return [];
+    }
+  }
+
+  // Exact directory (no wildcard)
+  const dirPath = join(cwd, normalized);
+  return existsSync(dirPath) ? [dirPath] : [];
+}
+
+function detectWorkspaceFramework(
+  workspaceDir: string,
+): {
+  framework: string;
+  command: string;
+  coverage_command?: string;
+} {
+  const pkgPath = join(workspaceDir, "package.json");
+
+  if (existsSync(pkgPath)) {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as PackageJson;
+
+    if (hasDependency(pkg, "vitest")) {
+      return {
+        framework: "vitest",
+        command: "npx vitest run",
+        coverage_command: "npx vitest run --coverage",
+      };
+    }
+
+    if (hasDependency(pkg, "jest")) {
+      return { framework: "jest", command: "npx jest" };
+    }
+
+    if (pkg.scripts?.test) {
+      return { framework: "unknown", command: "npm test" };
+    }
+  }
+
+  if (existsSync(join(workspaceDir, "go.mod"))) {
+    return { framework: "go", command: "go test ./..." };
+  }
+
+  if (existsSync(join(workspaceDir, "Cargo.toml"))) {
+    return { framework: "cargo", command: "cargo test" };
+  }
+
+  return { framework: "unknown", command: "npm test" };
+}
+
+function toForwardSlash(p: string): string {
+  return p.split(sep).join("/");
+}
+
+export function detectMonorepoProfiles(cwd: string): MonorepoDetectResult {
+  const none: MonorepoDetectResult = {
+    monorepo: false,
+    monorepo_type: null,
+    detected_profiles: [],
+  };
+
+  // pnpm
+  const pnpmWorkspacePath = join(cwd, "pnpm-workspace.yaml");
+  if (existsSync(pnpmWorkspacePath)) {
+    const raw = readFileSync(pnpmWorkspacePath, "utf8");
+    const parsed = parseYaml(raw) as { packages?: string[] } | null;
+    const patterns: string[] = parsed?.packages ?? [];
+    const dirs = patterns.flatMap((p) => resolveGlobDirs(cwd, p));
+    const profiles = dirs.map((dir) => {
+      const fw = detectWorkspaceFramework(dir);
+      const relPath = toForwardSlash(relative(cwd, dir));
+      const name = relPath.split("/").pop() ?? relPath;
+      return { name, working_dir: relPath, ...fw };
+    });
+    return { monorepo: true, monorepo_type: "pnpm", detected_profiles: profiles };
+  }
+
+  // turbo
+  if (existsSync(join(cwd, "turbo.json"))) {
+    return { monorepo: true, monorepo_type: "turbo", detected_profiles: [] };
+  }
+
+  // nx
+  if (existsSync(join(cwd, "nx.json"))) {
+    return { monorepo: true, monorepo_type: "nx", detected_profiles: [] };
+  }
+
+  // lerna
+  const lernaPath = join(cwd, "lerna.json");
+  if (existsSync(lernaPath)) {
+    const parsed = JSON.parse(readFileSync(lernaPath, "utf8")) as {
+      packages?: string[];
+    };
+    const patterns: string[] = parsed.packages ?? ["packages/*"];
+    const dirs = patterns.flatMap((p) => resolveGlobDirs(cwd, p));
+    const profiles = dirs.map((dir) => {
+      const fw = detectWorkspaceFramework(dir);
+      const relPath = toForwardSlash(relative(cwd, dir));
+      const name = relPath.split("/").pop() ?? relPath;
+      return { name, working_dir: relPath, ...fw };
+    });
+    return { monorepo: true, monorepo_type: "lerna", detected_profiles: profiles };
+  }
+
+  // yarn / npm workspaces in package.json
+  const pkgPath = join(cwd, "package.json");
+  if (existsSync(pkgPath)) {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as WorkspacePackageJson;
+
+    if (pkg.workspaces) {
+      const patterns: string[] = Array.isArray(pkg.workspaces)
+        ? pkg.workspaces
+        : pkg.workspaces.packages;
+      const dirs = patterns.flatMap((p) => resolveGlobDirs(cwd, p));
+      const profiles = dirs.map((dir) => {
+        const fw = detectWorkspaceFramework(dir);
+        const relPath = toForwardSlash(relative(cwd, dir));
+        const name = relPath.split("/").pop() ?? relPath;
+        return { name, working_dir: relPath, ...fw };
+      });
+      return { monorepo: true, monorepo_type: "yarn", detected_profiles: profiles };
+    }
+  }
+
+  return none;
 }
 
 export function detectOptionalTool(name: string): boolean {

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import {
   detectMemoryFile,
+  detectMonorepoProfiles,
   detectOptionalTool,
   detectProjectType,
   detectTestProfiles,
@@ -71,11 +72,12 @@ export function registerInitCommand(program: Command): void {
   program
     .command("init")
     .option("--auto-detect", "detect project defaults")
+    .option("--monorepo", "detect monorepo workspace profiles")
     .option(
       "--superpowers-available <value>",
       "whether superpowers are available",
     )
-    .action((options: { autoDetect?: boolean; superpowersAvailable?: string }) => {
+    .action((options: { autoDetect?: boolean; monorepo?: boolean; superpowersAvailable?: string }) => {
       const cwd = process.cwd();
       const created: string[] = [];
       const forgeDir = join(cwd, ".forge");
@@ -95,10 +97,29 @@ export function registerInitCommand(program: Command): void {
       ensureDirectory(join(forgeDir, "bin"), created);
       ensureDirectory(join(forgeDir, "backups"), created);
 
+      const monorepoResult = options.monorepo
+        ? detectMonorepoProfiles(cwd)
+        : null;
+
+      let testProfiles = detectTestProfiles(cwd);
+      if (monorepoResult?.monorepo && monorepoResult.detected_profiles.length > 0) {
+        testProfiles = Object.fromEntries(
+          monorepoResult.detected_profiles.map((p) => [
+            p.name,
+            {
+              framework: p.framework,
+              command: p.command,
+              working_dir: p.working_dir,
+              ...(p.coverage_command ? { coverage_command: p.coverage_command } : {}),
+            },
+          ]),
+        );
+      }
+
       const detected = {
         project_type: detectProjectType(cwd),
         memory_file: detectMemoryFile(cwd),
-        test_profiles: detectTestProfiles(cwd),
+        test_profiles: testProfiles,
         gstack_installed: detectOptionalTool("gstack"),
       };
 
@@ -123,6 +144,7 @@ export function registerInitCommand(program: Command): void {
         detected,
         created,
         forge_cli_version: FORGE_CLI_VERSION,
+        ...(monorepoResult?.monorepo ? { monorepo: true } : {}),
       });
     });
 }
