@@ -21,7 +21,7 @@
   "devDependencies": {
     "@types/node": "^22.15.21",
     "@types/pixelmatch": "^5.2.6",
-    "@types/pngjs": "^7.0.0",
+    "@types/pngjs": "^6.0.0",
     "typescript": "^5.8.3",
     "vitest": "^3.1.4"
   }
