@@ -13,7 +13,7 @@ owns state changes; this skill only coordinates commands and user messaging.
 Before calling any Forge Runtime command, resolve the executable:
 
 ```bash
-FORGE_CMD=$(command -v forge 2>/dev/null || echo ".forge/bin/forge")
+FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/plugins/forge/cli/dist/index.js" ]; then echo "node $HOME/.config/opencode/plugins/forge/cli/dist/index.js"; else echo ".forge/bin/forge"; fi; })
 ```
 
 All Runtime commands output JSON by default. Read the JSON, report blocking

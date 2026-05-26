@@ -102,12 +102,16 @@ node ~/.config/opencode/plugins/forge/cli/dist/index.js migrate --from 1.0 --to 
 node "%USERPROFILE%\.config\opencode\plugins\forge\cli\dist\index.js" migrate --from 1.0 --to 2.0
 ```
 
-Skills must not directly edit `.forge/*.json`; use the CLI runtime so state
-validation, migrations, and compatibility checks stay consistent.
+Skills must not directly edit Runtime-owned `.forge/*.json`; use the CLI
+runtime so state validation, migrations, and compatibility checks stay
+consistent. The `scenarios` skill is the narrow exception that creates
+`.forge/scenarios.json` from the confirmed spec, and the workflow validates it
+immediately with `forge schema:validate`.
 
 Skills resolve a global `forge` first and a project `.forge/bin/forge` second.
-The OpenCode installer only builds the plugin runtime; it does not install a
-global binary or create a project shim.
+Between those two, OpenCode skills can invoke the plugin runtime directly at
+`~/.config/opencode/plugins/forge/cli/dist/index.js`, so `/start` can run before
+project initialization creates a shim.
 
 ## Update
 
