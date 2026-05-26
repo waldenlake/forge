@@ -79,4 +79,17 @@ describe('security scanner', () => {
     const result = scanFiles([file]);
     expect(result.scanner).toBe('pattern');
   });
+
+  it('redacts the matched secret in findings', () => {
+    const dir = tempDir();
+    const file = writeFile(dir, 'aws.ts', 'const key = "AKIAIOSFODNN7EXAMPLE";\n');
+    const result = scanFiles([file]);
+    expect(result.findings.length).toBeGreaterThan(0);
+    const match = result.findings[0].match;
+    // Full token is AKIAIOSFODNN7EXAMPLE (20 chars); redact() keeps first 4 and last 4
+    expect(match).toMatch(/^AKIA/);
+    expect(match).toContain('...');
+    expect(match).toMatch(/MPLE$/);
+    expect(match.length).toBeLessThan('AKIAIOSFODNN7EXAMPLE'.length);
+  });
 });
