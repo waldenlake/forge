@@ -186,19 +186,28 @@ and skip to D.2.
 
 ### D.2 Implement via subagent
 
-REQUIRED: invoke the `superpowers:subagent-driven-development` skill with:
-- The task definition from the registered plan.
-- Matching scenarios from `.forge/scenarios.json`.
-- GitNexus impact context if available.
+Output `→ Subagent: task <id> — <title>`, then invoke the
+`superpowers:subagent-driven-development` skill.
+
+The skill runs **three sub-stages in order** — you MUST complete all three
+before proceeding to D.3:
+
+1. **Implementer subagent** — dispatches the task, writes code, writes tests,
+   runs tests, and commits.
+2. **Spec Compliance Reviewer subagent** — verifies the implementation matches
+   the scenarios in `.forge/scenarios.json`.
+3. **Code Quality Reviewer subagent** — verifies code is well-structured and
+   maintainable.
+
+Only after all three sub-stages pass may you continue to D.3.
 
 ```
-⚠ PROHIBITED: Do NOT implement the task code yourself.
-⚠ PROHIBITED: Do NOT write any implementation code before invoking the skill.
-⚠ PROHIBITED: Do NOT skip this skill invocation for any reason.
+⚠ PROHIBITED: Do NOT implement, test, or commit yourself — the subagent owns all of it.
+⚠ PROHIBITED: Do NOT skip any sub-stage, including for "simple" tasks.
+⚠ PROHIBITED: Do NOT proceed to D.3 after only the Implementer stage.
 ```
 
-The subagent is fully responsible for TDD, implementation, testing, and
-committing. Do NOT re-run tests or re-commit after the subagent completes.
+If the skill is unavailable: output `Subagent unavailable — halting.` and STOP.
 
 ### D.3 Mark done
 
