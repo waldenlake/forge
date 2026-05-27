@@ -90,8 +90,12 @@ Core commands include:
 
 1. `/start` calls Runtime status/init, then Superpowers brainstorming.
 2. Scenarios are generated and validated.
-3. `/next` advances phase, registers the plan, starts tasks, calls Superpowers
-   subagents, runs tests, commits, records guards, and verifies.
+3. `/next` advances phase and registers the plan, then loops over every pending
+   task: starts the task, invokes `subagent-driven-development` (which owns
+   TDD, implementation, tests, and commit), marks the task done, handles any
+   triggered guards — and immediately continues to the next task. Stops only
+   on error, guard failure, human-review, or when all tasks are complete, then
+   runs full verification.
 4. `/done` finishes the phase, archives scenarios, updates memory, and resets.
 5. `/resume` reconstructs position from Runtime status, audit, and commit
    checks.

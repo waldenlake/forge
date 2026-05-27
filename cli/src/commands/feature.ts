@@ -22,12 +22,11 @@ type FeatureStartOptions = {
 
 const WORKFLOW_RULES_BLOCK = `**Workflow Rules**
 MANDATORY — applies until this feature is complete:
-- Every task MUST follow: invoke superpowers skill → forge test → forge commit → forge task:done
-- Do NOT implement code directly without invoking superpowers:subagent-driven-development
-- Do NOT call task:done before tests pass
-- Do NOT skip any CLI command in the sequence
-- Do NOT batch multiple tasks in one cycle
-- When forge CLI returns ok: false, STOP and report the error`;
+- /next loops automatically: execute all pending tasks without pausing between them
+- Every task: invoke superpowers:subagent-driven-development (owns TDD, tests, and commit), then forge task:done
+- Do NOT implement code directly — do NOT re-run tests or re-commit after the subagent
+- Stop only when: forge returns ok:false, a guard fails, human-review fires, or all tasks complete
+- When forge CLI returns ok: false, report the error exactly and stop`;
 
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);

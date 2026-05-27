@@ -85,7 +85,7 @@ node "%USERPROFILE%\.config\opencode\plugins\forge\cli\dist\index.js" migrate --
 | Command | Purpose |
 |---------|---------|
 | `/start <requirement>` | Begin new feature |
-| `/next` | Confirm and execute, or continue next batch |
+| `/next` | Plan, execute all tasks, and verify |
 | `/resume` | Resume after interruption |
 | `/done` | Complete and archive |
 | `/bugfix <desc>` | Lightweight bug fix |
@@ -98,15 +98,11 @@ node "%USERPROFILE%\.config\opencode\plugins\forge\cli\dist\index.js" migrate --
   → Scenarios (Given/When/Then, human confirms)
 
 /next
-  → Plan (tasks with TDD steps, batched by 6)
-  → Execute (subagent per task, test first)
-  → Review (spec compliance + code quality)
-  → "Batch done. Open new session, run /next"
-
-/next (in new session)
-  → Execute next batch...
-  → (repeat until all batches done)
-  → Full verification
+  → Plan (tasks with TDD steps)
+  → Execute (subagent per task: TDD → implement → test → commit, all tasks run without pausing)
+  → Guard (spec compliance + code quality, at configured intervals)
+  → Verify (full test suite)
+  → STOP (run /done)
 
 /done
   → Archive feature
