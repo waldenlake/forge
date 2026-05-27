@@ -188,13 +188,29 @@ $FORGE_CMD task:done --id <id>
 
 ### D.6 Handle guards
 
-If `task:done` reports `guard_triggered: true`, run the guard action. Record:
+If `task:done` reports `guard_triggered: true`, run the guard:
+
+```bash
+$FORGE_CMD guard:run --type <type> --task-id <id>
+```
+
+The Runtime executes any deterministic actions (e.g. `gstack-e2e`,
+`gstack-visual`, `gstack-performance`) inline and returns the rest in
+`delegated_actions` — those are AI-driven actions you must perform yourself
+(e.g. `spec-compliance-review` via the relevant Superpowers skill).
+
+If `guard:run` returns `ok: false`, record the failure and STOP:
+
+```bash
+$FORGE_CMD guard:record --type <type> --status failed --tasks <ids> --notes "<summary>"
+```
+
+After all `delegated_actions` complete and inline `executed` actions are
+`ok: true`, record success:
 
 ```bash
 $FORGE_CMD guard:record --type <type> --status passed --tasks <ids> --notes "<summary>"
 ```
-
-If a guard fails, record `--status failed`, report blocking details, and STOP.
 
 ### D.7 Output
 

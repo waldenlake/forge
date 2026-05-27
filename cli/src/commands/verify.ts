@@ -107,8 +107,14 @@ export function registerVerifyCommand(program: Command): void {
       const startedAt = Date.now();
       const config = readConfig(cwd);
       const progress = readProgress(cwd);
-      const profileNames = ["default"];
+      const profileNames = Object.keys(config.test_profiles);
       const missingProfile = unknownProfile(config, profileNames);
+
+      if (profileNames.length === 0) {
+        process.exitCode = 1;
+        writeJson({ ok: false, error: "no test profiles configured" });
+        return;
+      }
 
       if (missingProfile) {
         process.exitCode = 1;

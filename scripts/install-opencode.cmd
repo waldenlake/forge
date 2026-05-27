@@ -66,20 +66,24 @@ echo Writing bridge plugin to %BRIDGE%
 
 REM --- 4. Link skills into OpenCode's discovery path ------------------------
 echo Linking skills into %SKILLS_DIR%
-for %%S in (using-forge start next resume done bugfix scenarios progress-tracking session-handoff) do (
-  set "SRC=%FORGE_DIR%\skills\%%S"
-  set "DST=%SKILLS_DIR%\%%S"
-  if exist "!DST!" (
-    REM remove old link or directory before recreating
-    rmdir "!DST!" 2>nul
-    if exist "!DST!" rmdir /s /q "!DST!"
-  )
-  mklink /J "!DST!" "!SRC!" >nul
-  if errorlevel 1 (
-    echo   FAILED to link %%S, copying instead
-    xcopy /e /i /q "!SRC!" "!DST!" >nul
+for /d %%S in ("%FORGE_DIR%\skills\*") do (
+  set "SKILL_NAME=%%~nxS"
+  set "SRC=%%~fS"
+  set "DST=%SKILLS_DIR%\%%~nxS"
+  if not exist "%%~fS\SKILL.md" (
+    echo   skipping %%~nxS ^(no SKILL.md^)
   ) else (
-    echo   linked %%S
+    if exist "!DST!" (
+      rmdir "!DST!" 2>nul
+      if exist "!DST!" rmdir /s /q "!DST!"
+    )
+    mklink /J "!DST!" "!SRC!" >nul
+    if errorlevel 1 (
+      echo   FAILED to link %%~nxS, copying instead
+      xcopy /e /i /q "!SRC!" "!DST!" >nul
+    ) else (
+      echo   linked %%~nxS
+    )
   )
 )
 

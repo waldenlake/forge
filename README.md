@@ -31,17 +31,17 @@ only builds the plugin runtime; use the explicit runtime path shown below.
 
 ```bash
 # Linux / macOS
-git clone https://github.com/waldenlake/forge.git /tmp/forge-installer
-bash /tmp/forge-installer/scripts/install-opencode.sh
-rm -rf /tmp/forge-installer
+curl -fsSL https://raw.githubusercontent.com/waldenlake/forge/main/scripts/install-opencode.sh | bash
 ```
 
-```cmd
-:: Windows
-git clone https://github.com/waldenlake/forge.git %TEMP%\forge-installer
-%TEMP%\forge-installer\scripts\install-opencode.cmd
-rmdir /s /q %TEMP%\forge-installer
+```powershell
+# Windows (PowerShell)
+iwr -useb https://raw.githubusercontent.com/waldenlake/forge/main/scripts/install-opencode.cmd -OutFile $env:TEMP\forge-install.cmd; & $env:TEMP\forge-install.cmd; Remove-Item $env:TEMP\forge-install.cmd
 ```
+
+The script clones the repo into `~/.config/opencode/plugins/forge/`, builds the
+CLI, registers a plugin bridge, and links every skill under
+`~/.config/opencode/skills/`. Re-run it to update.
 
 Restart OpenCode. See `.opencode/INSTALL.md` for details and troubleshooting.
 

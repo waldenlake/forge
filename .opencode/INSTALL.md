@@ -33,37 +33,27 @@ script wires it into both systems in one shot:
 ### Linux / macOS
 
 ```bash
-git clone https://github.com/waldenlake/forge.git /tmp/forge-installer
-bash /tmp/forge-installer/scripts/install-opencode.sh
-rm -rf /tmp/forge-installer
+curl -fsSL https://raw.githubusercontent.com/waldenlake/forge/main/scripts/install-opencode.sh | bash
 ```
 
-Or, if you already have the repo cloned locally:
+Or, from a local checkout:
 
 ```bash
 bash /path/to/forge/scripts/install-opencode.sh
 ```
 
-### Windows (cmd)
-
-```cmd
-git clone https://github.com/waldenlake/forge.git %TEMP%\forge-installer
-%TEMP%\forge-installer\scripts\install-opencode.cmd
-rmdir /s /q %TEMP%\forge-installer
-```
-
-Or:
-
-```cmd
-\path\to\forge\scripts\install-opencode.cmd
-```
-
 ### Windows (PowerShell)
 
 ```powershell
-git clone https://github.com/waldenlake/forge.git $env:TEMP\forge-installer
-cmd /c "$env:TEMP\forge-installer\scripts\install-opencode.cmd"
-Remove-Item -Recurse -Force $env:TEMP\forge-installer
+iwr -useb https://raw.githubusercontent.com/waldenlake/forge/main/scripts/install-opencode.cmd -OutFile $env:TEMP\forge-install.cmd; & $env:TEMP\forge-install.cmd; Remove-Item $env:TEMP\forge-install.cmd
+```
+
+### Windows (cmd)
+
+From a local checkout:
+
+```cmd
+\path\to\forge\scripts\install-opencode.cmd
 ```
 
 Restart OpenCode after install.
@@ -124,8 +114,10 @@ Linux / macOS:
 
 ```bash
 rm -rf ~/.config/opencode/plugins/forge ~/.config/opencode/plugins/forge.mjs
-for s in using-forge start next resume done bugfix scenarios progress-tracking session-handoff; do
-  rm -rf "${HOME}/.config/opencode/skills/${s}"
+for d in ~/.config/opencode/skills/*/; do
+  if [ -L "${d%/}" ] && readlink "${d%/}" | grep -q "/plugins/forge/skills/"; then
+    rm -rf "${d%/}"
+  fi
 done
 ```
 
@@ -134,8 +126,11 @@ Windows (cmd):
 ```cmd
 rmdir /s /q "%USERPROFILE%\.config\opencode\plugins\forge"
 del "%USERPROFILE%\.config\opencode\plugins\forge.mjs"
-for %S in (using-forge start next resume done bugfix scenarios progress-tracking session-handoff) do rmdir "%USERPROFILE%\.config\opencode\skills\%S"
+for /d %%S in ("%USERPROFILE%\.config\opencode\skills\*") do rmdir "%%~fS" 2>nul
 ```
+
+(The Windows command removes any junction in the skills directory; non-junction
+directories — e.g. unrelated copied skills — are left alone by `rmdir` without `/s`.)
 
 ## Why not `forge@git+https://...` in opencode.json?
 

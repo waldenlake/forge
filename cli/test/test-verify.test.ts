@@ -458,4 +458,67 @@ describe("test and verification commands", () => {
       );
     });
   });
+
+  test("forge verify runs all configured test_profiles, not only 'default'", () => {
+    withTempProject((cwd) => {
+      writeConfig(
+        cwd,
+        configWithProfiles({
+          unit: {
+            framework: "vitest",
+            command: markerCommand("ran-unit.txt", "unit"),
+            working_dir: ".",
+          },
+          integration: {
+            framework: "vitest",
+            command: markerCommand("ran-integration.txt", "integration"),
+            working_dir: ".",
+          },
+        }),
+      );
+      writeProgress(cwd, executingProgress());
+
+      const result = runForge(cwd, ["verify"]);
+      const output = parseStdout(result);
+
+      expect(result.status, JSON.stringify(output, null, 2)).toBe(0);
+      expect(output.tests.passed).toEqual(
+        expect.arrayContaining(["unit", "integration"]),
+      );
+      expect(readFileSync(join(cwd, "ran-unit.txt"), "utf8")).toBe("unit");
+      expect(readFileSync(join(cwd, "ran-integration.txt"), "utf8")).toBe(
+        "integration",
+      );
+    });
+  });
+
+  test("forge verify fails if any non-default profile fails", () => {
+    withTempProject((cwd) => {
+      writeConfig(
+        cwd,
+        configWithProfiles({
+          unit: {
+            framework: "vitest",
+            command: markerCommand("ran-unit.txt", "unit"),
+            working_dir: ".",
+          },
+          integration: {
+            framework: "vitest",
+            command: markerCommand("ran-integration.txt", "integration", 5),
+            working_dir: ".",
+          },
+        }),
+      );
+      writeProgress(cwd, executingProgress());
+
+      const result = runForge(cwd, ["verify"]);
+
+      expect(result.status).toBe(1);
+      expect(parseStdout(result)).toMatchObject({
+        ok: false,
+        status: "failed",
+        tests: { ok: false },
+      });
+    });
+  });
 });

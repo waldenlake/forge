@@ -17,18 +17,6 @@ FORGE_DIR="${PLUGINS_DIR}/forge"
 BRIDGE="${PLUGINS_DIR}/forge.mjs"
 REPO_URL="https://github.com/waldenlake/forge.git"
 
-SKILLS=(
-  using-forge
-  start
-  next
-  resume
-  done
-  bugfix
-  scenarios
-  progress-tracking
-  session-handoff
-)
-
 mkdir -p "${PLUGINS_DIR}" "${SKILLS_DIR}"
 
 # --- 1. Clone or update repo ------------------------------------------------
@@ -57,9 +45,15 @@ JS
 
 # --- 4. Link skills into OpenCode's discovery path --------------------------
 echo "Linking skills into ${SKILLS_DIR}"
-for skill in "${SKILLS[@]}"; do
-  src="${FORGE_DIR}/skills/${skill}"
+for skill_dir in "${FORGE_DIR}/skills"/*/; do
+  skill="$(basename "${skill_dir%/}")"
+  src="${skill_dir%/}"
   dst="${SKILLS_DIR}/${skill}"
+
+  if [ ! -f "${src}/SKILL.md" ]; then
+    echo "  skipping ${skill} (no SKILL.md)"
+    continue
+  fi
 
   if [ -L "${dst}" ] || [ -e "${dst}" ]; then
     rm -rf "${dst}"

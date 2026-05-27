@@ -143,11 +143,11 @@ describe("Forge skill contracts", () => {
 
     for (const command of [
       "task:start",
-      "forge test --coverage",
+      "$FORGE_CMD test --coverage",
       "forge commit",
       "task:done",
       "guard:record",
-      "forge verify --coverage",
+      "$FORGE_CMD verify --coverage",
     ]) {
       expect(content).toContain(command);
     }

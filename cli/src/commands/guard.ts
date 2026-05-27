@@ -2,11 +2,12 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import { git } from "../lib/git.js";
 import { triggeredGuards } from "../lib/guard.js";
+import { runGstack, type GstackResult } from "../lib/gstack/runner.js";
 import { checkCoverage } from "../lib/scanners/coverage.js";
 import { extractNewPackagesFromDiff, runDependencyAudit } from "../lib/scanners/dependency.js";
 import { scanFiles } from "../lib/scanners/security.js";
 import type { Severity } from "../lib/scanners/security.js";
-import { readConfig } from "../state/config.js";
+import { readConfig, type ForgeConfig } from "../state/config.js";
 import {
   type ForgeProgress,
   type ForgeTask,
@@ -84,6 +85,59 @@ function previewProgress(progress: ForgeProgress, task: ForgeTask): ForgeProgres
     tasks,
     completed_tasks: tasks.filter((item) => item.status === "done").length,
   };
+}
+
+const GSTACK_ACTION_TYPES: Record<string, "e2e" | "visual" | "performance"> = {
+  "gstack-e2e": "e2e",
+  "gstack-visual": "visual",
+  "gstack-performance": "performance",
+};
+
+type DispatchedActions = {
+  ok: boolean;
+  executed: Array<{ action: string } & (GstackResult | {
+    ok: false;
+    unavailable: true;
+    type: string;
+    message: string;
+  })>;
+  delegated: string[];
+};
+
+function dispatchActions(
+  cwd: string,
+  config: ForgeConfig,
+  actions: string[],
+): DispatchedActions {
+  const executed: DispatchedActions["executed"] = [];
+  const delegated: string[] = [];
+  let ok = true;
+
+  for (const action of actions) {
+    const gstackType = GSTACK_ACTION_TYPES[action];
+    if (!gstackType) {
+      delegated.push(action);
+      continue;
+    }
+
+    if (config.gstack_installed !== true) {
+      ok = false;
+      executed.push({
+        action,
+        ok: false,
+        unavailable: true,
+        type: gstackType,
+        message: "gstack is not installed or not enabled in config.json",
+      });
+      continue;
+    }
+
+    const result = runGstack(cwd, { type: gstackType });
+    if (!result.ok) ok = false;
+    executed.push({ action, ...result });
+  }
+
+  return { ok, executed, delegated };
 }
 
 export function registerGuardCommand(program: Command): void {
@@ -167,12 +221,21 @@ export function registerGuardCommand(program: Command): void {
         return;
       }
 
-      // Delegated types: batch-review, human-review, etc.
+      // Delegated types: batch-review, human-review, etc. Some of their
+      // configured actions may be deterministic (gstack-*) and run inline;
+      // the rest are returned as delegated_actions for the skill layer to
+      // dispatch (e.g. spec-compliance-review).
+      const guardConfig = config.guards[type];
+      const actions = guardConfig?.actions ?? [];
+      const dispatched = dispatchActions(cwd, config, actions);
+
+      if (!dispatched.ok) process.exitCode = 1;
       writeJson({
-        ok: true,
+        ok: dispatched.ok,
         delegated: true,
         type,
-        message: `${type} requires human or external agent review`,
+        executed: dispatched.executed,
+        delegated_actions: dispatched.delegated,
       });
     });
 
