@@ -21,12 +21,26 @@ type FeatureStartOptions = {
 };
 
 const WORKFLOW_RULES_BLOCK = `**Workflow Rules**
-MANDATORY — applies until this feature is complete:
-- /next loops automatically: execute all pending tasks without pausing between them
-- Every task: invoke superpowers:subagent-driven-development (owns TDD, tests, and commit), then forge task:done
-- Do NOT implement code directly — do NOT re-run tests or re-commit after the subagent
-- Stop only when: forge returns ok:false, a guard fails, human-review fires, or all tasks complete
-- When forge CLI returns ok: false, report the error exactly and stop`;
+MANDATORY — applies until this feature is complete.
+
+FOR EVERY TASK follow this exact sequence, no exceptions:
+  1. $FORGE_CMD task:start --id <id>
+  2. Output exactly: "→ Subagent: task <id> — <title>"
+     Then use the superpowers:subagent-driven-development skill (platform Skill tool).
+     Wait for the skill to complete. The subagent owns ALL code, tests, and commits.
+     If the skill is unavailable: output "Subagent unavailable — halting." and STOP.
+  3. $FORGE_CMD task:done --id <id>
+  4. Handle guards if triggered, then continue to next task immediately.
+
+YOU ARE VIOLATING THESE RULES if you:
+  - Write, edit, or generate any implementation code yourself (step 2 not done)
+  - Run tests or commits yourself
+  - Call task:done before the subagent skill completes
+  - Skip step 2 for any reason including "it's a simple task"
+
+LOOP: repeat steps 1–4 for every pending task without pausing between tasks.
+STOP only when: forge returns ok:false, guard fails, human-review fires, or all tasks complete.
+When forge CLI returns ok:false: report the error exactly and stop immediately.`;
 
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
