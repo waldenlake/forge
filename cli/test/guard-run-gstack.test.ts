@@ -50,8 +50,8 @@ function writeConfig(cwd: string, config: ForgeConfig): void {
   );
 }
 
-describe("guard:run gstack action dispatch", () => {
-  test("expands gstack-e2e action inline and runs runGstack when gstack_installed=true", () => {
+describe("guard:run action dispatch", () => {
+  test("gstack actions are returned as delegated_actions, not executed inline", () => {
     withTempProject((cwd) => {
       writeConfig(
         cwd,
@@ -75,25 +75,17 @@ describe("guard:run gstack action dispatch", () => {
         "3",
       ]);
 
-      // Playwright is not installed in test env, so the e2e action will fail.
-      // What we are asserting: it WAS executed (not just delegated), and
-      // spec-compliance-review is delegated separately.
+      expect(result.status).toBe(0);
       const payload = parseStdout(result) as Record<string, unknown>;
+      expect(payload.ok).toBe(true);
       expect(payload.type).toBe("batch-review");
-      expect(payload.delegated_actions).toEqual(["spec-compliance-review"]);
-
-      const executed = payload.executed as Array<Record<string, unknown>>;
-      expect(executed).toHaveLength(1);
-      expect(executed[0]?.action).toBe("gstack-e2e");
-      expect(executed[0]?.type).toBe("e2e");
-      // Either ok:false (no playwright) or ok:true if somehow installed —
-      // both are acceptable; the contract is that it ran, not that it
-      // succeeded.
-      expect(typeof executed[0]?.ok).toBe("boolean");
+      // All actions are delegated — gstack is handled by the skill layer
+      expect(payload.delegated_actions).toEqual(["spec-compliance-review", "gstack-e2e"]);
+      expect(payload.executed).toEqual([]);
     });
   });
 
-  test("returns ok:false and unavailable when gstack action present but gstack_installed=false", () => {
+  test("gstack actions are delegated even when gstack_installed=false", () => {
     withTempProject((cwd) => {
       writeConfig(
         cwd,
@@ -117,17 +109,16 @@ describe("guard:run gstack action dispatch", () => {
         "3",
       ]);
 
-      expect(result.status).toBe(1);
+      // Delegated — the skill layer is responsible for checking gstack availability
+      expect(result.status).toBe(0);
       const payload = parseStdout(result) as Record<string, unknown>;
-      expect(payload.ok).toBe(false);
-      const executed = payload.executed as Array<Record<string, unknown>>;
-      expect(executed).toHaveLength(1);
-      expect(executed[0]?.action).toBe("gstack-visual");
-      expect(executed[0]?.unavailable).toBe(true);
+      expect(payload.ok).toBe(true);
+      expect(payload.delegated_actions).toEqual(["gstack-visual"]);
+      expect(payload.executed).toEqual([]);
     });
   });
 
-  test("delegates non-gstack actions only when no gstack actions configured", () => {
+  test("non-gstack actions are returned as delegated_actions", () => {
     withTempProject((cwd) => {
       writeConfig(
         cwd,

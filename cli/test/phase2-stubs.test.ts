@@ -214,36 +214,6 @@ describe("phase 2 stub interfaces", () => {
     });
   });
 
-  test("test:gstack returns unavailable when gstack is not enabled", () => {
-    withTempProject((cwd) => {
-      writeConfig(cwd, defaultConfig({ gstack_installed: false }));
-
-      const result = runForge(cwd, ["test:gstack", "--type", "visual"]);
-
-      expect(result.status).toBe(1);
-      expect(parseStdout(result)).toEqual({
-        ok: false,
-        unavailable: true,
-        type: "visual",
-        message: "gstack is not installed or not enabled in config.json",
-      });
-    });
-  });
-
-  test("test:gstack returns error when gstack is enabled but Playwright is not configured", () => {
-    withTempProject((cwd) => {
-      writeConfig(cwd, defaultConfig({ gstack_installed: true }));
-
-      const result = runForge(cwd, ["test:gstack", "--type", "performance"]);
-
-      expect(result.status).toBe(1);
-      const payload = parseStdout(result);
-      expect(payload.ok).toBe(false);
-      expect(payload.type).toBe("performance");
-      expect(typeof payload.error).toBe("string");
-    });
-  });
-
   test("scenarios:export fails with ok=false when --template is missing", () => {
     withTempProject((cwd) => {
       const result = runForge(cwd, ["scenarios:export", "--feature", "auth"]);

@@ -404,10 +404,11 @@ describe("task and guard runtime commands", () => {
       const result = runForge(cwd, ["task:done", "--id", "6"]);
 
       expect(result.status).toBe(0);
+      // Order matches config.guards insertion order (defaultConfig key order)
       expect(parseStdout(result).guards.map((guard: { type: string }) => guard.type))
         .toEqual([
-          "security-scan",
           "batch-review",
+          "security-scan",
           "performance-budget",
           "human-review",
         ]);

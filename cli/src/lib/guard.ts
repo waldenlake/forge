@@ -7,24 +7,6 @@ export type TriggeredGuard = {
   task_range?: [number, number];
 };
 
-const GUARD_ORDER = [
-  "security-scan",
-  "dependency-audit",
-  "batch-review",
-  "performance-budget",
-  "human-review",
-] as const;
-
-function enabledGuard(config: ForgeConfig, type: string) {
-  const guard = config.guards[type];
-
-  if (!guard?.enabled) {
-    return null;
-  }
-
-  return guard;
-}
-
 function matchesKeyword(task: ForgeTask, keywords: string[] | undefined): boolean {
   if (!keywords || keywords.length === 0) {
     return false;
@@ -37,7 +19,7 @@ function matchesKeyword(task: ForgeTask, keywords: string[] | undefined): boolea
   );
 }
 
-function completedTaskRange(progress: ForgeProgress): [number, number] | undefined {
+function completedTaskRange(progress: ForgeProgress, type: string): [number, number] | undefined {
   const completedIds = progress.tasks
     .filter((item) => item.status === "done")
     .map((item) => item.id)
@@ -49,7 +31,7 @@ function completedTaskRange(progress: ForgeProgress): [number, number] | undefin
 
   const lastBatchGuard = [...progress.guard_history]
     .reverse()
-    .find((guard) => guard.type === "batch-review" && guard.task_range);
+    .find((guard) => guard.type === type && guard.task_range);
   const lastEnd = lastBatchGuard?.task_range?.[1] ?? 0;
   const idsSinceLastGuard = completedIds.filter((id) => id > lastEnd);
 
@@ -67,42 +49,48 @@ export function triggeredGuards(
 ): TriggeredGuard[] {
   const guards: TriggeredGuard[] = [];
 
-  for (const type of GUARD_ORDER) {
-    const guard = enabledGuard(config, type);
-    if (!guard) {
+  for (const [type, guard] of Object.entries(config.guards)) {
+    if (!guard.enabled) {
       continue;
     }
 
-    if (type === "security-scan" && matchesKeyword(task, guard.keywords)) {
-      guards.push({ type, actions: guard.actions });
-    }
+    const { trigger } = guard;
 
-    if (type === "dependency-audit") {
+    // These triggers fire outside task:done (git diff, phase completion)
+    if (trigger === "new-dependency" || trigger === "phase-complete") {
       continue;
     }
 
-    if (type === "batch-review") {
+    let triggered = false;
+    let taskRange: [number, number] | undefined;
+
+    if (trigger === "keyword") {
+      triggered = matchesKeyword(task, guard.keywords);
+    } else if (trigger === "manual") {
+      triggered = task.requires_human_review === true;
+    } else {
+      // Batch-style: trigger every N completed tasks.
+      // Applies when every_n_tasks is set or trigger is not specified.
       const every = guard.every_n_tasks ?? 6;
-      if (
-        progress.completed_tasks > 0 &&
-        progress.completed_tasks % every === 0
-      ) {
-        const taskRange = completedTaskRange(progress);
-        guards.push({
-          type,
-          actions: guard.actions,
-          ...(taskRange ? { task_range: taskRange } : {}),
-        });
+      triggered =
+        progress.completed_tasks > 0 && progress.completed_tasks % every === 0;
+      if (triggered) {
+        taskRange = completedTaskRange(progress, type);
+        if (!taskRange) {
+          triggered = false;
+        }
       }
     }
 
-    if (type === "performance-budget" && matchesKeyword(task, guard.keywords)) {
-      guards.push({ type, actions: guard.actions });
+    if (!triggered) {
+      continue;
     }
 
-    if (type === "human-review" && task.requires_human_review === true) {
-      guards.push({ type, actions: guard.actions });
-    }
+    guards.push({
+      type,
+      actions: guard.actions,
+      ...(taskRange ? { task_range: taskRange } : {}),
+    });
   }
 
   return guards;

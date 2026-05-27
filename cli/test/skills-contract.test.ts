@@ -138,19 +138,21 @@ describe("Forge skill contracts", () => {
     expect(content).toContain("forge migrate --from 1.0 --to 2.0");
   });
 
-  test("next skill documents task execution, guard, commit, and verification commands", () => {
+  test("next skill documents task execution, guard, and verification commands", () => {
     const content = readSkill("skills/next/SKILL.md");
 
     for (const command of [
       "task:start",
-      "$FORGE_CMD test --coverage",
-      "forge commit",
       "task:done",
       "guard:record",
       "$FORGE_CMD verify --coverage",
     ]) {
       expect(content).toContain(command);
     }
+
+    // Subagent owns testing and committing — /next must not re-run them
+    expect(content).not.toContain("$FORGE_CMD test --coverage");
+    expect(content).not.toContain("forge commit");
   });
 
   test("next registers the plan before advancing to execution", () => {

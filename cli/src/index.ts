@@ -4,7 +4,6 @@ import { registerAuditCommand } from "./commands/audit.js";
 import { registerCommitCommand } from "./commands/commit.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
 import { registerFeatureCommand } from "./commands/feature.js";
-import { registerGstackCommand } from "./commands/gstack.js";
 import { registerGuardCommand } from "./commands/guard.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerMemoryCommand } from "./commands/memory.js";
@@ -71,7 +70,6 @@ async function main(argv: string[]): Promise<void> {
   registerPhaseCommand(program);
   registerTaskCommand(program);
   registerGuardCommand(program);
-  registerGstackCommand(program);
   registerScenariosCommand(program);
   registerTestCommand(program);
   registerVerifyCommand(program);
