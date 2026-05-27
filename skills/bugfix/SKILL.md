@@ -3,9 +3,9 @@ name: bugfix
 description: Lightweight bug fix flow with regression test
 ---
 
-# /bugfix <description>
+# /bugfix \<description\>
 
-Run a focused bug fix with TDD. This skips full brainstorming/planning, but it
+Run a focused bug fix with TDD. Skips full brainstorming and planning, but
 still uses Runtime commands for state, tests, commits, memory, and reset.
 
 ## Forge CLI
@@ -19,120 +19,206 @@ FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/pl
 All Runtime commands output JSON by default. Read the JSON, report blocking
 errors exactly, and do not edit `.forge/*.json` directly.
 
-## Command Identifier
+## Step 0: Description Gate — do this BEFORE anything else
 
-```text
-⚒ forge · /bugfix
+If the text after `/bugfix` is absent or blank:
+
+- Output exactly:
+  `Please describe the bug. Include error messages, reproduction steps, or affected behavior.`
+- **STOP. Do not output the header. Do not run any CLI commands.**
+
+Only continue past this point when a non-empty description is present.
+
+## Output Format
+
+Follow the Forge Skill UX Standard (`skills/SKILL-UX.md`).
+
+**Header** (output immediately after Step 0 passes):
+
+```
+⚒ Forge  ·  /bugfix
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Progress lines**:
+
+```
+▸ Checking status…
+▸ Writing regression test…
+▸ Running tests…
+▸ Fixing…
+▸ Verifying…
+```
+
+**Error line**:
+
+```
+✘  <command>: <error from JSON>
+```
+
+**STOP block**:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  <reason>
+▸  Next: <action>
 ```
 
 ## Preconditions
 
-1. If `<description>` is empty, output
-   `"Please describe the bug. Include error messages, reproduction steps, or affected behavior."`
-   and stop.
-2. Run `$FORGE_CMD status`.
-3. If migration is required, tell the user to run
-   `forge migrate --from 1.0 --to 2.0` and stop.
-4. If a normal feature is active, ask before starting bugfix work.
+1. Output `▸ Checking status…`, then run `$FORGE_CMD status`.
+2. If `migration_required: true`, output:
+
+   ```
+   ✘  status: migration required — run: forge migrate --from 1.0 --to 2.0
+   ```
+
+   Then STOP.
+
+3. If a normal feature is `executing` or `planning`, output:
+
+   ```
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ⏸  Feature "<feature>" is active (status: <status>)
+   ▸  Next: confirm you want to interrupt it, or finish it first with /done
+   ```
+
+   Then STOP. Do not proceed until the user confirms.
 
 ## Flow
 
 ### 1. Confirm Reproduction
 
-Ask for missing details until the reproduction is concrete:
-- Starting state.
-- Action.
-- Actual broken behavior.
-- Expected behavior.
+Before writing any code, confirm the reproduction is concrete. Ask for missing
+details until all four are clear:
 
-Use the Superpowers `test-driven-development` skill. The regression test must
-fail on current code before implementation changes.
+- **Starting state** — what the system looks like before the bug triggers.
+- **Action** — the exact step that causes the bug.
+- **Actual behavior** — what broken output or error is observed.
+- **Expected behavior** — what correct output looks like.
 
-### 2. Start Runtime Task
+Do not proceed to code until reproduction is confirmed.
 
-Use `forge task:*` commands only when Runtime is already in an executing task
-flow. For a standalone bugfix, create the smallest tracked work item supported
-by current Runtime state; if Runtime cannot represent it yet, report that limit
-instead of editing `.forge/*.json`.
+### 2. Regression Test First
 
-When a task id is available:
+Output `▸ Writing regression test…`, then invoke the
+`superpowers:test-driven-development` skill.
+
+The regression test must **fail on current code** before any implementation
+changes. Output `▸ Running tests…` and run:
+
+```bash
+$FORGE_CMD test
+```
+
+If the test passes unexpectedly (bug not reproduced by test), output:
+
+```
+✘  test: regression test passes — bug may already be fixed, or the test does not reproduce it
+```
+
+Then STOP. Do not proceed with a fix.
+
+### 3. Track in Runtime
+
+**If status is `executing`** (a feature is in progress and the user confirmed
+continuing): run
 
 ```bash
 $FORGE_CMD task:start --id <id>
 ```
 
-### 3. Red
+using the task ID from the active plan.
 
-Write the regression test and run:
+**If status is `idle`** (standalone bugfix): do not attempt `task:start`.
+The Runtime cannot track individual bugfix tasks without a registered plan.
+Skip all `task:*` commands and note in the commit message that this is a
+standalone bugfix.
 
-```bash
-$FORGE_CMD test
-```
+### 4. Fix
 
-The test must fail for the expected reason. If it passes, stop and report that
-the bug may already be fixed or the reproduction is wrong.
-
-Commit the regression test when appropriate:
-
-```bash
-$FORGE_CMD commit --message "test: regression test for <bug>" --tag "forge task-<id>"
-```
-
-For user-facing summaries, say `forge commit`.
-
-### 4. Green
-
-Implement the minimal fix. Run:
+Output `▸ Fixing…`, then implement the minimal change that makes the regression
+test pass. Run:
 
 ```bash
 $FORGE_CMD test
 ```
 
-If failures remain, use up to 3 fix loops. Do not change the regression test
-unless it is demonstrably wrong and you explain why.
+If tests fail, run up to 3 fix loops. Do not modify the regression test unless
+it is provably testing the wrong thing — explain why if so.
 
-Commit the fix:
+After tests pass, commit:
 
-```bash
-$FORGE_CMD commit --message "fix: <bug>" --tag "forge task-<id>"
-```
+- **Executing flow** (has task id):
 
-Then mark the task done:
+  ```bash
+  $FORGE_CMD commit --message "fix: <bug-description>" --tag "forge task-<id>"
+  ```
 
-```bash
-$FORGE_CMD task:done --id <id>
-```
+  Then:
 
-If the task cannot be represented in Runtime yet, report the limitation and do
-not pretend state was updated.
+  ```bash
+  $FORGE_CMD task:done --id <id>
+  ```
 
-### 5. Complete
+- **Standalone flow** (idle, no task id):
 
-Run final verification:
+  ```bash
+  $FORGE_CMD commit --message "fix: <bug-description>"
+  ```
+
+### 5. Verify and Complete
+
+Output `▸ Verifying…`, then run:
 
 ```bash
 $FORGE_CMD verify --coverage
 ```
 
-If it passes, update memory and reset only through Runtime:
+If verification fails, output:
+
+```
+✘  verify: <failed profile details from JSON>
+```
+
+Then STOP.
+
+If verification passes, update memory:
 
 ```bash
-$FORGE_CMD memory:complete-feature --feature <bugfix-id> --date <YYYY-MM-DD> --tasks "<done>/<total>" --deferred "0" --spec "-" --plan "-" --scenarios "-"
+$FORGE_CMD memory:complete-feature \
+  --feature <bugfix-slug> \
+  --date <YYYY-MM-DD> \
+  --tasks "1/1" \
+  --deferred "0" \
+  --spec "-" \
+  --plan "-" \
+  --scenarios "-"
+```
+
+Then reset:
+
+```bash
 $FORGE_CMD reset --backup
 ```
 
-For user-facing summaries, say `forge memory:complete-feature` and
-`forge reset`.
+Output the completion block:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✔  Bugfix complete: <bug-description>
+   Backup: <backup_path from reset JSON>
+```
 
 ## Error Handling
 
-| Condition | Response |
+| Condition | Output |
 |---|---|
-| Regression test passes unexpectedly | Stop and report that reproduction is not proving the bug. |
-| Tests fail after 3 loops | Report failing JSON exactly and stop. |
-| Runtime cannot represent standalone bugfix tasks | State the limitation explicitly; do not edit state files. |
-| Runtime command returns `ok: false` | Report JSON error exactly and stop. |
+| Empty description | `Please describe the bug. Include error messages, reproduction steps, or affected behavior.` |
+| `migration_required: true` | `✘  status: migration required — run: forge migrate --from 1.0 --to 2.0` |
+| Regression test passes before fix | `✘  test: regression test passes — bug may already be fixed, or the test does not reproduce it` |
+| Tests still fail after 3 loops | `✘  test: still failing after 3 attempts — <failing profiles from JSON>` |
+| Runtime `ok: false` | `✘  <command>: <error field from JSON>` |
 
 ## Dependencies
 

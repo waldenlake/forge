@@ -3,7 +3,7 @@ name: start
 description: Begin a new feature — brainstorm, generate scenarios, get confirmation
 ---
 
-# /start <requirement>
+# /start \<requirement\>
 
 Begin a new work item and leave it ready for review. Keep the skill thin:
 Forge Runtime owns state mutation; this skill calls the CLI, reads JSON, calls
@@ -30,27 +30,68 @@ If the text after `/start` is absent or blank:
 
 Only continue past this point when a non-empty requirement is present.
 
-## Header
+## Output Format
 
-Before any further logic, output:
+Follow the Forge Skill UX Standard (`skills/SKILL-UX.md`).
 
-```text
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  ⚒  F O R G E  v0.2.0               ┃
-┃  CLI Runtime Orchestration            ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+**Header** (output immediately after Step 0 passes):
+
+```
+⚒ Forge  ·  /start
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Progress lines** before each major operation:
+
+```
+▸ Checking status…
+▸ Brainstorming…
+▸ Generating scenarios…
+▸ Validating scenarios…
+▸ Starting feature…
+```
+
+**Step results** after each succeeds:
+
+```
+✔ Scenarios validated  ·  <N> scenarios, <N> P0
+✔ Feature started  ·  <slug>
+```
+
+**STOP block** at the end:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  Scenarios ready — review above before continuing
+▸  Next: /next to confirm  ·  or ask to revise
 ```
 
 ## Preconditions
 
-1. Run `forge status` through `$FORGE_CMD status`.
-3. If the JSON has `migration_required: true`, output the exact migration need
-   and tell the user to run `forge migrate --from 1.0 --to 2.0`. Stop.
-4. If config is absent, detect whether Superpowers is available, then run
-   `forge init --auto-detect --superpowers-available true` or
-   `forge init --auto-detect --superpowers-available false`.
-5. If the status JSON reports an active feature that is not `idle`, report the
-   blocking status exactly. Do not delete or overwrite state.
+1. Run `$FORGE_CMD status`.
+2. If the JSON has `migration_required: true`, output:
+
+   ```
+   ✘  status: migration required — run: forge migrate --from 1.0 --to 2.0
+   ```
+
+   Then STOP.
+
+3. If config is absent, detect whether Superpowers is available, then run:
+
+   ```bash
+   $FORGE_CMD init --auto-detect --superpowers-available true
+   ```
+
+   or `--superpowers-available false`. Report the JSON result.
+
+4. If the status JSON reports an active feature that is not `idle`, output:
+
+   ```
+   ✘  feature already active: <feature>  ·  status: <status>
+   ```
+
+   Then STOP. Do not delete or overwrite state.
 
 ## Flow
 
@@ -59,81 +100,114 @@ Before any further logic, output:
 Create a URL-safe feature slug from the requirement:
 - Lowercase meaningful words.
 - Replace spaces and special characters with hyphens.
-- Collapse repeated hyphens and keep it short enough for filenames.
+- Collapse repeated hyphens; keep it short enough for filenames.
 
 Examples:
-- `user authentication with JWT` -> `user-authentication-jwt`
-- `Add dark mode support` -> `dark-mode-support`
+- `user authentication with JWT` → `user-authentication-jwt`
+- `Add dark mode support` → `dark-mode-support`
 
 ### 2. Brainstorm
 
-Use the Superpowers `brainstorming` skill.
-
-Input:
+Output `▸ Brainstorming…`, then invoke the Superpowers `brainstorming` skill
+with:
 - The user's requirement.
 - Any referenced files.
 - The generated slug as filename context.
 
 The output spec path must be a real file, usually:
 
-```text
+```
 docs/superpowers/specs/YYYY-MM-DD-<feature-slug>-design.md
 ```
 
-If brainstorming produces no spec path, report
-`"Brainstorming didn't converge. Provide more detail."` and stop.
+If brainstorming produces no spec path, output:
+
+```
+✘  brainstorming: no spec path produced — provide more detail and try again
+```
+
+Then STOP.
 
 ### 3. Generate Scenarios
 
-Use the Forge scenarios skill to produce `.forge/scenarios.json` from the spec.
-Invoke it with:
+Output `▸ Generating scenarios…`, then invoke the `scenarios` skill with:
 - explicit `<spec_path>`: the captured Superpowers design spec path.
 - explicit `<feature_slug>`: the slug generated in Step 1.
 
-After the scenarios file is produced, validate it:
+After the scenarios file is produced, output `▸ Validating scenarios…` and run:
 
 ```bash
 $FORGE_CMD schema:validate --file .forge/scenarios.json
 ```
 
-If validation fails, report the schema errors exactly and stop. Scenario
-revisions must go through the scenarios skill and be validated again.
+If validation fails, output:
+
+```
+✘  schema:validate: <errors from JSON>
+```
+
+Then STOP. Scenario revisions must go through the scenarios skill and be
+validated again.
 
 ### 4. Start Runtime Feature
 
-After the spec path is known and scenarios validate, run:
+Output `▸ Starting feature…`, then run:
 
 ```bash
 $FORGE_CMD feature:start --feature <slug> --spec <path>
 ```
 
-Read the JSON. If `ok` is false, report the blocking error exactly and stop.
+If `ok` is false, output:
+
+```
+✘  feature:start: <error field from JSON>
+```
+
+Then STOP.
 
 ### 5. Present Review
 
-Show:
-- A 2-4 sentence spec summary.
-- The scenarios as readable Given/When/Then items.
-- The next options:
+Output the step result:
 
-```text
-Review complete. You can:
-- /next to confirm and begin planning
-- ask Forge to adjust scenarios and revalidate
-- ask to revise the spec, then regenerate scenarios
+```
+✔ Scenarios validated  ·  <N> scenarios, <P0-count> P0
+✔ Feature started  ·  <slug>
 ```
 
-Stop after review. Do not run `/next` in the same turn.
+Then render the scenarios from `.forge/scenarios.json` in this exact format
+(one block per scenario, no extra prose between them):
+
+```
+S001 [P0]  <title>
+  Given  <given>
+  When   <when>
+  Then   <then assertions, one per line>
+
+S002 [P1]  <title>
+  ...
+```
+
+Then output the STOP block:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  Scenarios ready — review above before continuing
+▸  Next: /next to confirm  ·  or ask to revise scenarios  ·  or ask to revise the spec
+```
+
+Stop after the STOP block. Do not run `/next` in the same turn.
 
 ## Error Handling
 
-| Condition | Response |
+| Condition | Output |
 |---|---|
-| Empty requirement | Ask for a requirement and stop. |
-| `forge status` returns migration required | Tell the user to run `forge migrate --from 1.0 --to 2.0` and stop. |
-| Runtime command returns `ok: false` | Report the JSON error or `blocked_by` exactly and stop. |
-| Referenced file missing | `File not found: <path>. Check path and try again.` |
-| Scenario validation fails | Report the `schema:validate` errors exactly and stop. |
+| Empty requirement | `Please provide a requirement. Example: /start user authentication with JWT` |
+| `migration_required: true` | `✘  status: migration required — run: forge migrate --from 1.0 --to 2.0` |
+| Active feature blocks start | `✘  feature already active: <feature>  ·  status: <status>` |
+| Runtime `ok: false` | `✘  <command>: <error field>` |
+| Referenced file missing | `✘  file not found: <path>` |
+| Brainstorming produces no spec | `✘  brainstorming: no spec path produced — provide more detail and try again` |
+| Scenario validation fails | `✘  schema:validate: <errors from JSON>` |
 
 ## Dependencies
 

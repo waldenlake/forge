@@ -1,23 +1,12 @@
 ---
 name: next
-description: Advance the Forge workflow by exactly one step
+description: Advance the Forge workflow — plan, execute all tasks, verify
 ---
 
 # /next
 
-Drive the Forge workflow forward. Execute continuously until a genuine STOP condition is met.
-
-## STOP Conditions — only these pause execution
-
-```
-- Any forge command returns ok: false → STOP and report error exactly.
-- guard:run returns ok: false (guard failed) → record failure, STOP.
-- guard type is human-review → STOP and ask the human to confirm.
-- All tasks are done/deferred and phase:complete + verify finish → STOP (run /done).
-- Status is idle or bugfix → STOP (nothing to execute).
-```
-
-Do NOT stop between tasks. After one task completes normally, immediately start the next.
+Drive the Forge workflow forward. Execute continuously until a genuine STOP
+condition is met.
 
 ## Forge CLI
 
@@ -30,119 +19,174 @@ FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/pl
 All Runtime commands output JSON by default. Read the JSON, report blocking
 errors exactly, and do not edit `.forge/*.json` directly.
 
-## Command Identifier
+## Output Format
 
-```text
-⚒ forge · /next
+Follow the Forge Skill UX Standard (`skills/SKILL-UX.md`).
+
+**Header** (output at the start of every `/next` invocation):
+
+```
+⚒ Forge  ·  /next
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
+**Per-task progress** (output before starting each task):
+
+```
+▸ [N/T] <task title>
+```
+
+**Per-task result** (output after task:done succeeds):
+
+```
+✔ Task N done
+```
+
+**STOP block** (always last, when execution pauses):
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  <one-line reason>
+▸  Next: <exact command>
+```
+
+**Error line** (before STOP):
+
+```
+✘  <command>: <error from JSON>
+```
+
+## STOP Conditions
+
+Execution continues until one of these is true:
+
+| Condition | Action |
+|---|---|
+| Any Runtime command returns `ok: false` | Output error line, STOP |
+| `guard:run` returns `ok: false` | Record failure, output error line, STOP |
+| Guard type is `human-review` | Output STOP block asking human to confirm |
+| Guard fails (any type) | Record failure, STOP |
+| All tasks done/deferred, phase complete, verification passed | Output completion STOP block |
+| Status is `idle` or `bugfix` | Output STOP block immediately |
+
+Do NOT stop between tasks when a task completes normally.
+
 ## Step 1: Read State
 
-Run:
+Output the header, then run:
 
 ```bash
 $FORGE_CMD status
 ```
 
-If `migration_required` is true, stop and tell the user to run
-`forge migrate --from 1.0 --to 2.0`.
+If `migration_required: true`:
+
+```
+✘  status: migration required — run: forge migrate --from 1.0 --to 2.0
+```
+
+STOP.
 
 ## Step 2: Dispatch by Status
 
-Read the `status` field from the JSON. Execute the matching action.
-
 | Status | Condition | Action |
 |---|---|---|
-| `idle` | — | Output: "No active feature. Use /start first." STOP |
-| `bugfix` | — | Output: "Bugfix in progress. Complete it or cancel." STOP |
-| `planning` | `plan_path` is null | Go to **Action A: Write Plan** |
-| `planning` | `plan_path` set, `total_tasks` is 0 | Go to **Action B: Register Plan** |
-| `planning` | `total_tasks` > 0 | Go to **Action C: Advance to Execution** |
-| `executing` | — | Go to **Action D: Execute Tasks** (loop) |
-| `verification_complete` | verification not `passed` | Go to **Action F: Run Verification** |
-| `verification_complete` | verification `passed` | Output: "Verification passed. Run /done to complete." STOP |
+| `idle` | — | STOP: "No active feature. Use /start first." |
+| `bugfix` | — | STOP: "Bugfix in progress. Complete it or use /bugfix." |
+| `planning` | `plan_path` is null | **Action A: Write Plan** |
+| `planning` | `plan_path` set, `total_tasks` is 0 | **Action B: Register Plan** |
+| `planning` | `total_tasks` > 0 | **Action C: Advance to Execution** |
+| `executing` | — | **Action D: Execute Tasks** (loop) |
+| `verification_complete` | verification not `passed` | **Action F: Run Verification** |
+| `verification_complete` | verification `passed` | STOP: "Verification passed. Run /done to complete." |
 
 ---
 
 ## Action A: Write Plan
 
-REQUIRED: Invoke the `superpowers:writing-plans` skill with:
+Output `▸ Writing plan…`, then invoke the `superpowers:writing-plans` skill
+with:
 - The design spec path from `status.spec_path`.
 - The scenarios file at `.forge/scenarios.json`.
 - Constraint: tasks must be small, include TDD steps, and reference scenarios.
 
 Do NOT write the plan yourself. The skill MUST be invoked.
 
-After the plan file is written, output:
+After the plan file is written, output the STOP block:
 
-```text
-Plan written to <path>. Run /next to register it.
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  Plan written to <path> — review before registering
+▸  Next: /next
 ```
 
-STOP. Do not continue to plan registration.
+STOP. Do not continue to plan registration in the same turn.
 
 ---
 
 ## Action B: Register Plan
 
-Run:
+Output `▸ Registering plan…`, then run:
 
 ```bash
 $FORGE_CMD plan:register --plan <path>
 ```
 
-If `ok` is false, report the JSON error exactly and STOP.
+Where `<path>` is `status.plan_path` from the current status JSON.
 
-Output:
+If `ok` is false, output `✘  plan:register: <error>` and STOP.
 
-```text
-Plan registered. <total_tasks> tasks extracted. Run /next to start execution.
+Output the STOP block:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  Plan registered  ·  <total_tasks> tasks extracted
+▸  Next: /next
 ```
 
-STOP. Do not advance to execution.
+STOP. Do not advance to execution in the same turn.
 
 ---
 
 ## Action C: Advance to Execution
 
-Run:
+Output `▸ Advancing to execution…`, then run:
 
 ```bash
 $FORGE_CMD phase:advance
 ```
 
-If `ok` is false, report `blocked_by` exactly and STOP.
+If `ok` is false, output `✘  phase:advance blocked — <blocked_by>` and STOP.
 
-Output:
-
-```text
-Phase advanced to executing. Starting first task now.
-```
-
-Then immediately continue to **Action D: Execute Tasks**.
+Then immediately continue to **Action D: Execute Tasks** (no pause here).
 
 ---
 
 ## Action D: Execute Tasks
 
-This action loops over all pending tasks. For each task:
+Loop over all pending tasks. For each task, follow steps D.1–D.5 in order.
+Get the task list from the most recent `$FORGE_CMD status` response; re-read
+status at the start of each loop iteration to get the current pending task.
 
 ### D.1 Start the task
 
-If the task status is `pending`, run:
+Read the next task: the first task with status `in_progress`, or if none, the
+first task with status `pending`.
+
+If task status is `pending`, output `▸ [N/T] <task title>`, then run:
 
 ```bash
 $FORGE_CMD task:start --id <id>
 ```
 
-If `ok` is false, report the error and STOP.
+If `ok` is false, output `✘  task:start: <error>` and STOP.
 
-If the task status is already `in_progress`, skip this step (resuming).
+If task status is already `in_progress`, output `▸ [N/T] <task title> (resuming)`
+and skip to D.2.
 
 ### D.2 Implement via subagent
 
-REQUIRED: Invoke the `superpowers:subagent-driven-development` skill with:
+REQUIRED: invoke the `superpowers:subagent-driven-development` skill with:
 - The task definition from the registered plan.
 - Matching scenarios from `.forge/scenarios.json`.
 - GitNexus impact context if available.
@@ -153,86 +197,135 @@ REQUIRED: Invoke the `superpowers:subagent-driven-development` skill with:
 ⚠ PROHIBITED: Do NOT skip this skill invocation for any reason.
 ```
 
-The subagent is fully responsible for TDD, implementation, testing, and committing.
-Do NOT re-run tests or re-commit after the subagent completes.
+The subagent is fully responsible for TDD, implementation, testing, and
+committing. Do NOT re-run tests or re-commit after the subagent completes.
 
 ### D.3 Mark done
+
+Run:
 
 ```bash
 $FORGE_CMD task:done --id <id>
 ```
 
-If `ok` is false, report the error and STOP.
+If `ok` is false, output `✘  task:done: <error>` and STOP.
+
+Output `✔ Task N done`.
 
 ### D.4 Handle guards
 
-If `task:done` reports `guard_triggered: true`, run the guard:
+`task:done` returns a `guards` array. If `guard_triggered: true`:
 
-```bash
-$FORGE_CMD guard:run --type <type> --task-id <id>
-```
+**For each guard in the `guards` array** (process sequentially):
 
-The Runtime returns two categories of actions:
-- `executed`: deterministic actions run inline (e.g. scanners)
-- `delegated_actions`: AI-driven actions you must perform yourself
-  (e.g. `spec-compliance-review` via the relevant Superpowers skill,
-  `gstack-e2e`/`gstack-visual`/`gstack-performance` via the gstack skill)
+1. Run:
 
-If `guard:run` returns `ok: false`, record the failure and STOP:
+   ```bash
+   $FORGE_CMD guard:run --type <guard.type> --task-id <id>
+   ```
 
-```bash
-$FORGE_CMD guard:record --type <type> --status failed --tasks <ids> --notes "<summary>"
-```
+2. The response contains:
+   - `executed`: deterministic inline actions (e.g. security-scan results).
+   - `delegated_actions`: AI-driven actions to perform yourself (e.g.
+     `spec-compliance-review` via Superpowers, `gstack-e2e` via gstack skill).
 
-If guard type is `human-review`: record the result after the human confirms, then STOP.
+3. Perform all `delegated_actions` now. For each:
+   - `spec-compliance-review` → invoke `superpowers:requesting-code-review`.
+   - `gstack-e2e` / `gstack-visual` / `gstack-performance` → invoke the gstack
+     skill with the appropriate type.
+   - Any other action → invoke the matching Superpowers skill by name.
 
-After all `delegated_actions` complete and inline `executed` actions are
-`ok: true`, record success:
+4. If `guard:run` returns `ok: false` **or** any `executed` action has
+   `ok: false`:
 
-```bash
-$FORGE_CMD guard:record --type <type> --status passed --tasks <ids> --notes "<summary>"
-```
+   ```bash
+   $FORGE_CMD guard:record \
+     --type <guard.type> \
+     --status failed \
+     --tasks <min-id>,<max-id from guard.task_range or current task id> \
+     --notes "<brief summary of failure>"
+   ```
 
-If guard passes, continue to D.5.
+   Output:
+
+   ```
+   ✘  guard <guard.type>: failed
+   ```
+
+   STOP. Do not process remaining guards.
+
+5. If guard type is `human-review`: output the STOP block and wait:
+
+   ```
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ⏸  Guard: human-review — confirm or reject before continuing
+   ▸  Next: confirm (then /next) or reject (then /bugfix)
+   ```
+
+   STOP. Record only after the human responds in the next turn.
+
+6. If all actions pass, record success:
+
+   ```bash
+   $FORGE_CMD guard:record \
+     --type <guard.type> \
+     --status passed \
+     --tasks <min-id>,<max-id from guard.task_range or current task id> \
+     --notes "<brief summary>"
+   ```
+
+   Output `✔ Guard passed  ·  <guard.type>`.
+
+   Continue to the next guard in the array.
+
+After all guards pass, continue to D.5.
 
 ### D.5 Continue loop
 
-Check if another `pending` task exists:
+Re-run `$FORGE_CMD status` to get the current task list.
 
-- **Yes** → go back to D.1 with the next pending task. Do not pause.
-- **No** → go to **Action E: Complete Phase**.
+- If any task has status `pending` → go back to D.1. Do not pause.
+- If no `pending` tasks remain → go to **Action E: Complete Phase**.
 
 ---
 
 ## Action E: Complete Phase
 
-Run:
+Output `▸ Completing phase…`, then run:
 
 ```bash
 $FORGE_CMD phase:complete
 ```
 
-If `ok` is false, report `blocked_by` exactly and STOP.
+If `ok` is false, output `✘  phase:complete blocked — <blocked_by>` and STOP.
 
-Then immediately run **Action F: Run Verification**.
+Then immediately continue to **Action F: Run Verification**.
 
 ---
 
 ## Action F: Run Verification
 
-Run:
+Output `▸ Verifying…`, then run:
 
 ```bash
 $FORGE_CMD verify --coverage
 ```
 
-If verification fails, report the failed test/build JSON details exactly and
+If verification fails, output:
+
+```
+✘  verify: <failed test/build profile details from JSON>
+```
+
 STOP.
 
 If verification passes, output:
 
-```text
-Verification passed. Run /done to complete the feature.
+```
+✔ Verification passed
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  All tasks done and verified
+▸  Next: /done
 ```
 
 STOP.
@@ -241,16 +334,16 @@ STOP.
 
 ## Error Handling
 
-| Condition | Response |
+| Condition | Output |
 |---|---|
-| Runtime command returns `ok: false` | Report the JSON error or `blocked_by` exactly and STOP. |
-| Plan file cannot be created | `Plan generation failed. Check spec and scenarios.json for completeness.` |
-| Guard fails | Record with `guard:record --status failed`, report details, STOP. |
-| Guard type is human-review | STOP, ask the human to confirm before recording. |
+| Runtime `ok: false` | `✘  <command>: <error or blocked_by from JSON>` then STOP |
+| Guard fails | Record with `--status failed`, output `✘  guard <type>: failed`, STOP |
+| Guard type is `human-review` | STOP block asking human to confirm |
+| Plan generation fails | `✘  writing-plans: no plan produced — check spec and scenarios.json` |
 
 ## Dependencies
 
-- **Superpowers: writing-plans** — implementation plan generation.
-- **Superpowers: subagent-driven-development** — per-task execution (TDD, implement, test, commit).
-- **Superpowers: requesting-code-review** — guard action when configured.
+- **Superpowers: writing-plans** — plan generation.
+- **Superpowers: subagent-driven-development** — per-task execution.
+- **Superpowers: requesting-code-review** — spec-compliance-review guard action.
 - **Forge CLI Runtime** — phase, task, guard, verification state.

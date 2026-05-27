@@ -18,71 +18,148 @@ FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/pl
 All Runtime commands output JSON by default. Read the JSON, report blocking
 errors exactly, and do not edit `.forge/*.json` directly.
 
-## Command Identifier
+## Output Format
 
-```text
-⚒ forge · /resume
+Follow the Forge Skill UX Standard (`skills/SKILL-UX.md`).
+
+**Header**:
+
+```
+⚒ Forge  ·  /resume
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Status summary** (always output after reading state):
+
+```
+Feature:  <feature>
+Status:   <status>
+Progress: <completed>/<total> tasks done
+Next:     Task <id>  ·  <title>
+```
+
+**STOP block**:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  <reason>
+▸  Next: <command>
+```
+
+**Error line**:
+
+```
+✘  <command>: <error from JSON>
 ```
 
 ## Flow
 
-1. Read Runtime state:
+### 1. Read Runtime state
 
-   ```bash
-   $FORGE_CMD status
-   ```
+Output the header, then run:
 
-   If no active feature exists, output `"No active feature. Use /start."` and
-   stop. If migration is required, tell the user to run
-   `forge migrate --from 1.0 --to 2.0` and stop.
+```bash
+$FORGE_CMD status
+```
 
-2. Audit git consistency:
+If no active feature (`status: idle`):
 
-   ```bash
-   $FORGE_CMD audit
-   ```
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  No active feature
+▸  Next: /start <requirement>
+```
 
-   If audit reports `ok: false`, report the JSON error exactly and stop.
+STOP.
 
-3. If there are done tasks, check their task commits:
+If `migration_required: true`:
 
-   ```bash
-   $FORGE_CMD commit:check --task-ids <ids>
-   ```
+```
+✘  status: migration required — run: forge migrate --from 1.0 --to 2.0
+```
 
-   If commits are missing, show the missing task ids and ask the user whether to
-   continue anyway or stop. Do not edit Runtime JSON to requeue tasks.
+STOP.
 
-4. Print a concise location summary:
-   - Feature slug.
-   - Status.
-   - Completed/total tasks.
-   - In-progress or next pending task.
-   - Guard failures/skips from audit, if any.
+### 2. Audit git consistency
 
-5. Ask:
+Run:
 
-   ```text
-   Resume from Task <id>? (yes / no / show-task)
-   ```
+```bash
+$FORGE_CMD audit
+```
 
-   On `yes`, continue as `/next`. On `show-task`, read the plan file and display
-   only that task definition, then ask again.
+If `ok: false`, output `✘  audit: <error>` and STOP.
+
+### 3. Check task commits
+
+If any tasks have status `done`, run:
+
+```bash
+$FORGE_CMD commit:check --task-ids <comma-separated done task ids>
+```
+
+If commits are missing, show the missing task ids and output the STOP block:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  Missing commits for tasks: <ids>
+▸  Next: confirm to continue anyway, or investigate with git log
+```
+
+STOP. Do not edit Runtime JSON to requeue tasks.
+
+### 4. Output status summary
+
+Print the status summary block:
+
+```
+Feature:  <feature>
+Status:   <status>
+Progress: <completed>/<total> tasks done
+Next:     Task <id>  ·  <title>
+```
+
+Where `Next` is:
+- First task with status `in_progress`, if any.
+- Otherwise, first task with status `pending`.
+- If all tasks are done/deferred: `verification` (if not yet verified) or
+  `/done` (if verified).
+
+Then output the confirmation prompt:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  Ready to resume
+▸  Reply: yes to continue  ·  show-task to see task details  ·  no to stop
+```
+
+STOP. Wait for user reply.
+
+### 5. Handle user reply
+
+- **`yes`**: invoke the `/next` skill directly. Do not re-read state or repeat
+  the summary.
+- **`show-task`**: read the plan file at `status.plan_path` and display only
+  the current task definition (id, title, description, TDD steps). Then repeat
+  the confirmation prompt from Step 4.
+- **`no`**: output `Stopped. Run /resume when ready.` and stop.
 
 ## Special Cases
 
-- `planning` with scenarios ready: tell the user `/next` will register the plan.
-- `executing` with failed guard: show audit guard details and stop until the
-  user confirms the issue is resolved.
-- `verification_complete`: tell the user to run `/done`.
-- `bugfix`: continue using `/bugfix` rules.
+| Status | Handling |
+|---|---|
+| `planning`, no plan yet | Summary shows "Next: write plan". After yes → invoke /next |
+| `planning`, plan registered | Summary shows "Next: advance to execution". After yes → invoke /next |
+| `executing`, guard failed | Show guard failure from audit. Output STOP block until user resolves |
+| `verification_complete` | Summary shows "Next: /done". Prompt accordingly |
+| `bugfix` | Summary shows "Next: continue /bugfix". After yes → continue bugfix flow |
 
 ## Error Handling
 
-| Condition | Response |
+| Condition | Output |
 |---|---|
-| Runtime command returns `ok: false` | Report JSON error exactly and stop. |
-| Plan file missing | `Plan file not found at <path>. Cannot show task details.` |
-| Missing task commits | Ask user whether to continue; do not mutate state directly. |
-| Migration required | Tell the user to run `forge migrate --from 1.0 --to 2.0`. |
+| No active feature | STOP block: "No active feature — use /start" |
+| `migration_required: true` | `✘  status: migration required — run: forge migrate --from 1.0 --to 2.0` |
+| Runtime `ok: false` | `✘  <command>: <error>` |
+| Plan file missing for show-task | `✘  plan file not found at <path>` |
+| Missing task commits | STOP block listing missing task ids |

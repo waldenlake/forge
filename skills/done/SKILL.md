@@ -5,8 +5,7 @@ description: Complete a feature — verify, archive, and clean up
 
 # /done
 
-Complete the current feature after Runtime verification has passed. The CLI
-owns state changes; this skill only coordinates commands and user messaging.
+Complete the current feature after Runtime verification has passed.
 
 ## Forge CLI
 
@@ -19,93 +18,149 @@ FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/pl
 All Runtime commands output JSON by default. Read the JSON, report blocking
 errors exactly, and do not edit `.forge/*.json` directly.
 
-## Command Identifier
+## Output Format
 
-```text
-⚒ forge · /done
+Follow the Forge Skill UX Standard (`skills/SKILL-UX.md`).
+
+**Header**:
+
+```
+⚒ Forge  ·  /done
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
+**Progress lines**:
+
+```
+▸ Checking status…
+▸ Finishing phase…
+▸ Archiving scenarios…
+▸ Updating memory…
+▸ Resetting…
+```
+
+**Error line**:
+
+```
+✘  <command>: <error or blocked_by from JSON>
+```
+
+**Completion block**:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✔  Feature complete: <feature>
+   Tasks:     <done>/<total>  (deferred: <N>)
+   Scenarios: <archive-path>
+   Spec:      <spec-path>
+   Plan:      <plan-path>
+   Backup:    <backup-path>
+```
+
+Omit any line where the value is unavailable (e.g. no backup path → omit
+`Backup:`).
+
 ## Preconditions
 
-1. Run `$FORGE_CMD status`.
-2. If there is no active feature, report `"No active feature."` and stop.
-3. If status is not `verification_complete`, tell the user to run `/next` for
-   remaining execution or verification.
-4. If verification is not passed, run `forge verify --coverage` through:
+1. Output the header, then `▸ Checking status…`, then run `$FORGE_CMD status`.
+2. If no active feature: output `✘  status: no active feature` and STOP.
+3. If status is not `verification_complete`, output:
+
+   ```
+   ✘  status: <current-status> — run /next to complete remaining execution or verification
+   ```
+
+   STOP.
+
+4. If `verification.status` is not `passed`, output `▸ Verifying…` and run:
 
    ```bash
    $FORGE_CMD verify --coverage
    ```
 
-   If it fails, report the JSON details exactly and stop.
+   If it fails, output `✘  verify: <failed profile details>` and STOP.
+
+Before changing state, capture from the status JSON:
+`feature`, `completed_tasks`, `total_tasks`, `deferred_tasks`, `spec_path`,
+`plan_path`. These are needed for memory and output because `phase:finish`
+resets progress to idle.
 
 ## Flow
 
-Before changing state, capture the feature slug, task counts, deferred count,
-spec path, plan path, and scenario archive path from the `status` JSON. Current
-Runtime `phase:finish` resets active progress to idle, so later commands must
-use these captured values when their interfaces support explicit metadata.
+### 1. Finish the Runtime phase
 
-1. Finish the Runtime phase:
+Output `▸ Finishing phase…`, then run:
 
-   ```bash
-   $FORGE_CMD phase:finish
-   ```
+```bash
+$FORGE_CMD phase:finish
+```
 
-   For user-facing summaries, say `phase:finish`. If blocked, report
-   `blocked_by` exactly and stop.
+If `ok` is false, output `✘  phase:finish blocked — <blocked_by>` and STOP.
 
-2. Archive scenarios:
+### 2. Archive scenarios
 
-   ```bash
-   $FORGE_CMD scenarios:archive
-   ```
+Output `▸ Archiving scenarios…`, then run:
 
-   Use captured feature metadata if Runtime supports it. If the command is
-   blocked because `phase:finish` reset state to idle, report the Runtime JSON
-   exactly. Do not copy files manually.
+```bash
+$FORGE_CMD scenarios:archive
+```
 
-3. Update memory with captured metadata:
+If `ok` is false, output `✘  scenarios:archive: <error>` and STOP. Do not
+copy files manually.
 
-   ```bash
-   $FORGE_CMD memory:complete-feature --feature <feature> --date <YYYY-MM-DD> --tasks "<done>/<total>" --deferred "<count>" --spec <path> --plan <path> --scenarios <path>
-   ```
+Capture `archived_to` from the JSON for use in the completion block.
 
-   If `verified` is false, report the memory file error exactly and stop.
+### 3. Update memory
 
-4. Run the backup reset fallback only when Runtime reports a later cleanup or
-   archive step was blocked by the state reset:
+Output `▸ Updating memory…`, then run:
 
-   ```bash
-   $FORGE_CMD reset --backup
-   ```
+```bash
+$FORGE_CMD memory:complete-feature \
+  --feature <feature> \
+  --date <YYYY-MM-DD> \
+  --tasks "<done>/<total>" \
+  --deferred "<deferred_tasks>" \
+  --spec <spec_path> \
+  --plan <plan_path> \
+  --scenarios <archived_to>
+```
 
-   For user-facing summaries, say `reset --backup`. Report `backup_path` if the
-   JSON includes it. Do not run this fallback silently; explain the blocking
-   Runtime JSON that made it necessary.
+Use the values captured before `phase:finish`. If `ok` is false or
+`verified: false`, output `✘  memory:complete-feature: <error>` and STOP.
 
-5. Optionally commit completion artifacts only if the user asks. This skill does
-   not auto-commit.
+### 4. Reset
 
-## Output
+Output `▸ Resetting…`, then always run:
 
-```text
-▸ Complete
-Feature: <feature>
-Tasks: <done>/<total>
-Deferred: <count>
-Scenarios: <archive path>
-Spec: <spec path>
-Plan: <plan path>
-Backup: <backup path>
+```bash
+$FORGE_CMD reset --backup
+```
+
+This is always the final step — not conditional. Capture `backup_path` from the
+JSON for the completion block. If `ok` is false, output
+`✘  reset: <error>` and STOP.
+
+### 5. Output completion block
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✔  Feature complete: <feature>
+   Tasks:     <done>/<total>  (deferred: <N>)
+   Scenarios: <archived_to>
+   Spec:      <spec_path>
+   Plan:      <plan_path>
+   Backup:    <backup_path>
 ```
 
 ## Error Handling
 
-| Condition | Response |
+| Condition | Output |
 |---|---|
-| Runtime command returns `ok: false` | Report JSON `error` or `blocked_by` exactly and stop. |
-| Verification failed | Report failed test/build profiles and stop. |
-| Memory verification failed | Report the Runtime JSON exactly and stop. |
-| Reset backup fails | Report the Runtime JSON exactly; do not claim completion. |
+| No active feature | `✘  status: no active feature` |
+| Status not `verification_complete` | `✘  status: <status> — run /next first` |
+| Verification fails | `✘  verify: <failed profile details>` |
+| Runtime `ok: false` | `✘  <command>: <error or blocked_by>` |
+
+## Dependencies
+
+- **Forge CLI Runtime** — phase:finish, scenarios:archive, memory, reset.
