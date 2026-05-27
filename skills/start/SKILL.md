@@ -20,9 +20,19 @@ FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/pl
 All Runtime commands output JSON by default. Read the JSON, report blocking
 errors exactly, and do not edit `.forge/*.json` directly.
 
+## Step 0: Requirement Gate — do this BEFORE anything else
+
+If the text after `/start` is absent or blank:
+
+- Output exactly:
+  `Please provide a requirement. Example: /start user authentication with JWT`
+- **STOP. Do not output the header. Do not run any CLI commands.**
+
+Only continue past this point when a non-empty requirement is present.
+
 ## Header
 
-Before any logic, output:
+Before any further logic, output:
 
 ```text
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -33,10 +43,7 @@ Before any logic, output:
 
 ## Preconditions
 
-1. If `<requirement>` is empty, output
-   `"Please provide a requirement. Example: /start user authentication with JWT"`
-   and stop.
-2. Run `forge status` through `$FORGE_CMD status`.
+1. Run `forge status` through `$FORGE_CMD status`.
 3. If the JSON has `migration_required: true`, output the exact migration need
    and tell the user to run `forge migrate --from 1.0 --to 2.0`. Stop.
 4. If config is absent, detect whether Superpowers is available, then run
