@@ -154,7 +154,7 @@ STOP. Wait for user reply.
 | `executing`, task has `reset_reason` | Show "Task N was interrupted by /bugfix — will be fully re-executed" before the status summary |
 | `verified` | Summary shows "Next: /done". Prompt accordingly |
 | `execution_complete` | Summary shows "Next: /verify". Prompt accordingly |
-| `bugfix` | Summary shows "Next: continue /bugfix". After yes → continue bugfix flow |
+
 ## Error Handling
 
 | Condition | Output |

@@ -85,28 +85,42 @@ node "%USERPROFILE%\.config\opencode\plugins\forge\cli\dist\index.js" migrate --
 | Command | Purpose |
 |---------|---------|
 | `/start <requirement>` | Begin new feature |
-| `/next` | Plan, execute all tasks, and verify |
+| `/next` | Route to the current phase and advance the workflow |
 | `/resume` | Resume after interruption |
 | `/done` | Complete and archive |
 | `/bugfix <desc>` | Lightweight bug fix |
 
 ## How It Works
 
+The workflow is split into 5 ordered phase skills. `/next` is a status-aware
+router: it reads the current state and dispatches to the matching phase skill.
+Each phase auto-advances into the next, so a single `/next` can carry the work
+forward until it hits a human checkpoint or a blocker.
+
 ```
-/start "user authentication with JWT"
-  → Brainstorming (clarify requirements)
-  → Scenarios (Given/When/Then, human confirms)
+state: idle → planning → executing → execution_complete → verified → idle
 
-/next
-  → Plan (tasks with TDD steps)
-  → Execute (subagent per task: TDD → implement → test → commit, all tasks run without pausing)
-  → Guard (spec compliance + code quality, at configured intervals)
-  → Verify (full test suite)
-  → STOP (run /done)
+/start "user authentication with JWT"   (idle → planning)
+  → environment check + init + feature registration
+  → auto-advances into the planning phase
 
-/done
-  → Archive feature
-  → Scenarios saved as project knowledge
+/planning                                (planning, internal)
+  → Brainstorming (clarify requirements) → spec  ·  human confirms
+  → Scenarios (Given/When/Then) → plan → phase:advance
+
+/executing                               (planning → executing → execution_complete)
+  → per task: TDD → implement → test → commit (subagent, no pausing)
+  → Guards (spec compliance + code quality) at configured intervals
+  → phase:complete gate (tasks done + clean tree + build passes)
+
+/verify                                  (execution_complete → verified)
+  → full test suite + build + security/dependency checks → phase:verify-pass
+
+/done                                    (verified → idle)
+  → archive scenarios as project knowledge + reset
+
+/next                                    routes to whichever phase matches state
+/resume / /bugfix                        recover after interruption / fix a bug
 ```
 
 ## Requirements
