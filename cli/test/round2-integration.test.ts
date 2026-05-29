@@ -37,7 +37,6 @@ function setupProject(cwd: string): void {
     version: "2.0",
     forge_cli_version: "0.2.0",
     memory_file: "AGENTS.md",
-    test_mode: "normal",
     project_type: "existing",
     test_profiles: {
       default: {
@@ -84,6 +83,7 @@ function setupProject(cwd: string): void {
     plan_path: "plan.md",
     total_tasks: 3,
     completed_tasks: 2,
+    phase_complete_attempts: 0,
     tasks: [
       { id: 1, title: "Setup", status: "done" },
       { id: 2, title: "Add database", status: "done" },
@@ -92,7 +92,7 @@ function setupProject(cwd: string): void {
     guard_history: [],
     verification: {
       status: "pending",
-      test_mode: "normal",
+      attempts: 0,
       last_run: null,
       report_path: null,
     },

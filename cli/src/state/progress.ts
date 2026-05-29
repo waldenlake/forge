@@ -7,8 +7,8 @@ export type ProgressStatus =
   | "idle"
   | "planning"
   | "executing"
-  | "verification_complete"
-  | "bugfix";
+  | "execution_complete"
+  | "verified";
 
 export type TaskStatus =
   | "pending"
@@ -30,6 +30,7 @@ export type ForgeTask = {
   requires_human_review?: boolean;
   failure_reason?: string;
   defer_reason?: string;
+  reset_reason?: string;
 };
 
 export type ForgeProgress = {
@@ -42,6 +43,7 @@ export type ForgeProgress = {
   plan_path: string | null;
   total_tasks: number;
   completed_tasks: number;
+  phase_complete_attempts: number;
   tasks: ForgeTask[];
   guard_history: Array<{
     id: string;
@@ -53,7 +55,7 @@ export type ForgeProgress = {
   }>;
   verification: {
     status: VerificationStatus;
-    test_mode: "normal" | "enhanced";
+    attempts: number;
     last_run: string | null;
     report_path: string | null;
   };
@@ -90,11 +92,12 @@ export function idleProgress(): ForgeProgress {
     plan_path: null,
     total_tasks: 0,
     completed_tasks: 0,
+    phase_complete_attempts: 0,
     tasks: [],
     guard_history: [],
     verification: {
       status: "pending",
-      test_mode: "normal",
+      attempts: 0,
       last_run: null,
       report_path: null,
     },

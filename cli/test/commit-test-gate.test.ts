@@ -29,7 +29,6 @@ function withTempGitRepo(run: (cwd: string) => void): void {
           version: "2.0",
           forge_cli_version: "0.2.0",
           memory_file: "AGENTS.md",
-          test_mode: "normal",
           project_type: "existing",
           test_profiles: {
             default: {

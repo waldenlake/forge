@@ -1,5 +1,5 @@
 ---
-name: resume
+name: forge:resume
 description: Resume work after session interruption
 ---
 
@@ -151,9 +151,10 @@ STOP. Wait for user reply.
 | `planning`, no plan yet | Summary shows "Next: write plan". After yes → invoke /next |
 | `planning`, plan registered | Summary shows "Next: advance to execution". After yes → invoke /next |
 | `executing`, guard failed | Show guard failure from audit. Output STOP block until user resolves |
-| `verification_complete` | Summary shows "Next: /done". Prompt accordingly |
+| `executing`, task has `reset_reason` | Show "Task N was interrupted by /bugfix — will be fully re-executed" before the status summary |
+| `verified` | Summary shows "Next: /done". Prompt accordingly |
+| `execution_complete` | Summary shows "Next: /verify". Prompt accordingly |
 | `bugfix` | Summary shows "Next: continue /bugfix". After yes → continue bugfix flow |
-
 ## Error Handling
 
 | Condition | Output |

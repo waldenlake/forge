@@ -1,0 +1,265 @@
+
+> @forge/cli@0.2.0 check
+> npm run build && npm test
+
+
+> @forge/cli@0.2.0 build
+> tsc -p tsconfig.json
+
+
+> @forge/cli@0.2.0 test
+> vitest run
+
+
+[1m[46m RUN [49m[22m [36mv3.2.4 [39m[90mE:/space/open/project/forge/cli[39m
+
+ [31m❯[39m test/skills-contract.test.ts [2m([22m[2m51 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 28[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/start/SKILL.md resolves the Forge CLI before Runtime calls[32m 1[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/planning/SKILL.md resolves the Forge CLI before Runtime calls[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/executing/SKILL.md resolves the Forge CLI before Runtime calls[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/verify/SKILL.md resolves the Forge CLI before Runtime calls[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/done/SKILL.md resolves the Forge CLI before Runtime calls[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/next/SKILL.md resolves the Forge CLI before Runtime calls[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/progress-tracking/SKILL.md resolves the Forge CLI before Runtime calls[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/resume/SKILL.md resolves the Forge CLI before Runtime calls[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/bugfix/SKILL.md resolves the Forge CLI before Runtime calls[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/session-handoff/SKILL.md resolves the Forge CLI before Runtime calls[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/using-forge/SKILL.md resolves the Forge CLI before Runtime calls[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/start/SKILL.md can resolve OpenCode plugin runtime[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/planning/SKILL.md can resolve OpenCode plugin runtime[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/executing/SKILL.md can resolve OpenCode plugin runtime[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/verify/SKILL.md can resolve OpenCode plugin runtime[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/done/SKILL.md can resolve OpenCode plugin runtime[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/next/SKILL.md can resolve OpenCode plugin runtime[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/progress-tracking/SKILL.md can resolve OpenCode plugin runtime[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/resume/SKILL.md can resolve OpenCode plugin runtime[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/bugfix/SKILL.md can resolve OpenCode plugin runtime[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/session-handoff/SKILL.md can resolve OpenCode plugin runtime[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/using-forge/SKILL.md can resolve OpenCode plugin runtime[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/start/SKILL.md prohibits direct .forge/*.json edits[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/planning/SKILL.md prohibits direct .forge/*.json edits[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/executing/SKILL.md prohibits direct .forge/*.json edits[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/verify/SKILL.md prohibits direct .forge/*.json edits[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/done/SKILL.md prohibits direct .forge/*.json edits[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/next/SKILL.md prohibits direct .forge/*.json edits[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/progress-tracking/SKILL.md prohibits direct .forge/*.json edits[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/resume/SKILL.md prohibits direct .forge/*.json edits[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/bugfix/SKILL.md prohibits direct .forge/*.json edits[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/session-handoff/SKILL.md prohibits direct .forge/*.json edits[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/start/SKILL.md does not reintroduce direct Forge JSON state mutation instructions[32m 1[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/planning/SKILL.md does not reintroduce direct Forge JSON state mutation instructions[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/executing/SKILL.md does not reintroduce direct Forge JSON state mutation instructions[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/verify/SKILL.md does not reintroduce direct Forge JSON state mutation instructions[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/done/SKILL.md does not reintroduce direct Forge JSON state mutation instructions[32m 0[2mms[22m[39m
+[31m   [31m×[31m Forge skill contracts[2m > [22mskills/next/SKILL.md does not reintroduce direct Forge JSON state mutation instructions[39m[32m 9[2mms[22m[39m
+[31m     → expected [ …(2) ] to deeply equal [][39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/progress-tracking/SKILL.md does not reintroduce direct Forge JSON state mutation instructions[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/resume/SKILL.md does not reintroduce direct Forge JSON state mutation instructions[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/bugfix/SKILL.md does not reintroduce direct Forge JSON state mutation instructions[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mskills/session-handoff/SKILL.md does not reintroduce direct Forge JSON state mutation instructions[32m 1[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mdirect state mutation detector catches legacy wording examples[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22musing-forge documents Runtime ownership and v2 migration rules[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mnext skill is a thin router and does not run phase commands[32m 1[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mplanning skill registers the plan before advancing to execution[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mexecuting skill drives task lifecycle and phase:complete gate[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mverify skill runs forge verify and promotes via phase:verify-pass[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mdone skill finishes phase, archives scenarios, updates memory, then resets[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mstart runs doctor and feature:start without doing planning work[32m 0[2mms[22m[39m
+   [32m✓[39m Forge skill contracts[2m > [22mscenarios skill accepts explicit /planning inputs without progress state[32m 1[2mms[22m[39m
+ [32m✓[39m test/cli-baseline.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1130[2mms[22m[39m
+   [33m[2m✓[22m[39m forge CLI baseline[2m > [22mprints machine-readable version compatibility JSON [33m 593[2mms[22m[39m
+   [33m[2m✓[22m[39m forge CLI baseline[2m > [22mprints readable help without error output [33m 535[2mms[22m[39m
+ [32m✓[39m test/dependency-audit.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 1693[2mms[22m[39m
+   [33m[2m✓[22m[39m runDependencyAudit[2m > [22maudits packages and returns structured result [33m 1674[2mms[22m[39m
+ [32m✓[39m test/guard-run-gstack.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1632[2mms[22m[39m
+   [33m[2m✓[22m[39m guard:run action dispatch[2m > [22mgstack actions are returned as delegated_actions, not executed inline [33m 493[2mms[22m[39m
+   [33m[2m✓[22m[39m guard:run action dispatch[2m > [22mgstack actions are delegated even when gstack_installed=false [33m 519[2mms[22m[39m
+   [33m[2m✓[22m[39m guard:run action dispatch[2m > [22mnon-gstack actions are returned as delegated_actions [33m 617[2mms[22m[39m
+ [32m✓[39m test/security-scan.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 77[2mms[22m[39m
+ [32m✓[39m test/schema.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 2674[2mms[22m[39m
+   [33m[2m✓[22m[39m schema validation[2m > [22maccepts a complete v2 config object [33m 424[2mms[22m[39m
+   [33m[2m✓[22m[39m schema validation[2m > [22mschema:validate fails when the file does not match the explicitly provided schema [33m 689[2mms[22m[39m
+   [33m[2m✓[22m[39m schema validation[2m > [22mschema:validate infers repo schemas when invoked from the cli directory [33m 657[2mms[22m[39m
+   [33m[2m✓[22m[39m schema validation[2m > [22mschema:validate rejects invalid progress date-time without stderr warnings [33m 713[2mms[22m[39m
+ [32m✓[39m test/state.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 328[2mms[22m[39m
+ [32m✓[39m test/logger.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3070[2mms[22m[39m
+   [33m[2m✓[22m[39m forge --log-file structured logger[2m > [22mlog file is created and first line is JSON with ts, cmd, event:start [33m 574[2mms[22m[39m
+   [33m[2m✓[22m[39m forge --log-file structured logger[2m > [22mlog contains both start and result events [33m 637[2mms[22m[39m
+   [33m[2m✓[22m[39m forge --log-file structured logger[2m > [22mrunning same command twice appends to log, resulting in >= 4 lines [33m 1237[2mms[22m[39m
+   [33m[2m✓[22m[39m forge --log-file structured logger[2m > [22mwithout --log-file, no log file is created in cwd [33m 620[2mms[22m[39m
+ [32m✓[39m test/monorepo-detect.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 777[2mms[22m[39m
+   [33m[2m✓[22m[39m init --monorepo CLI flag[2m > [22minit --auto-detect --monorepo outputs ok=true and monorepo=true for pnpm workspace [33m 687[2mms[22m[39m
+ [32m✓[39m test/metadata.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m test/coverage-gate.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m test/status-enhanced.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 3367[2mms[22m[39m
+   [33m[2m✓[22m[39m forge status guard preview[2m > [22mincludes guard field when status is executing [33m 627[2mms[22m[39m
+   [33m[2m✓[22m[39m forge status guard preview[2m > [22mprogress includes spec_path, plan_path, and deferred_tasks [33m 690[2mms[22m[39m
+   [33m[2m✓[22m[39m forge status guard preview[2m > [22mguard.preview.security_scan_will_trigger is true for 'Add token refresh' [33m 728[2mms[22m[39m
+   [33m[2m✓[22m[39m forge status guard preview[2m > [22mbatch-review countdown: every_n_tasks=3, completed=2 → tasks_until_guard=1, due_at_task=3 [33m 726[2mms[22m[39m
+   [33m[2m✓[22m[39m forge status guard preview[2m > [22mguard is undefined when status is idle [33m 594[2mms[22m[39m
+ [32m✓[39m test/task-reset.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 3216[2mms[22m[39m
+   [33m[2m✓[22m[39m task:reset command[2m > [22mresets in_progress task to pending and clears started_at [33m 734[2mms[22m[39m
+   [33m[2m✓[22m[39m task:reset command[2m > [22mresets pending task to pending and records reason [33m 606[2mms[22m[39m
+   [33m[2m✓[22m[39m task:reset command[2m > [22mrejects reset on done task [33m 601[2mms[22m[39m
+   [33m[2m✓[22m[39m task:reset command[2m > [22mrejects reset on failed task [33m 564[2mms[22m[39m
+   [33m[2m✓[22m[39m task:reset command[2m > [22mrejects reset outside executing status [33m 707[2mms[22m[39m
+ [32m✓[39m test/scenarios-template.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 3923[2mms[22m[39m
+   [33m[2m✓[22m[39m scenarios template export and import[2m > [22mscenarios:export writes template file and returns scenarios_count [33m 504[2mms[22m[39m
+   [33m[2m✓[22m[39m scenarios template export and import[2m > [22mscenarios:export fails when .forge/scenarios.json is missing [33m 679[2mms[22m[39m
+   [33m[2m✓[22m[39m scenarios template export and import[2m > [22mscenarios:import merges template scenarios into scenarios.json [33m 595[2mms[22m[39m
+   [33m[2m✓[22m[39m scenarios template export and import[2m > [22mscenarios:import skips scenarios with duplicate IDs [33m 535[2mms[22m[39m
+   [33m[2m✓[22m[39m scenarios template export and import[2m > [22mscenarios:import --as-given sets type: given-template on imported scenarios [33m 515[2mms[22m[39m
+   [33m[2m✓[22m[39m scenarios template export and import[2m > [22mscenarios:import creates scenarios.json when it does not exist [33m 601[2mms[22m[39m
+   [33m[2m✓[22m[39m scenarios template export and import[2m > [22mscenarios:import fails with exit 1 when template file does not exist [33m 490[2mms[22m[39m
+ [32m✓[39m test/phase2-gates.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 3965[2mms[22m[39m
+   [33m[2m✓[22m[39m Phase 2 gate enforcement[2m > [22mforge verify entry gate[2m > [22mverify blocks when status is not execution_complete [33m 818[2mms[22m[39m
+   [33m[2m✓[22m[39m Phase 2 gate enforcement[2m > [22mforge verify entry gate[2m > [22mverify blocks when retry budget exhausted [33m 723[2mms[22m[39m
+   [33m[2m✓[22m[39m Phase 2 gate enforcement[2m > [22mforge verify entry gate[2m > [22mverify passes and includes failure_class in output [33m 992[2mms[22m[39m
+   [33m[2m✓[22m[39m Phase 2 gate enforcement[2m > [22mforge verify entry gate[2m > [22mverify failure increments attempts and sets failure_class [33m 984[2mms[22m[39m
+   [33m[2m✓[22m[39m Phase 2 gate enforcement[2m > [22mphase:complete gate[2m > [22mphase:complete blocks when phase_complete_attempts >= 3 [33m 446[2mms[22m[39m
+ [32m✓[39m test/task-commit-check.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 4332[2mms[22m[39m
+   [33m[2m✓[22m[39m task:done commit tag validation[2m > [22mtask:done rejects when in git repo but no tagged commit [33m 1490[2mms[22m[39m
+   [33m[2m✓[22m[39m task:done commit tag validation[2m > [22mtask:done succeeds when tagged commit exists [33m 2122[2mms[22m[39m
+   [33m[2m✓[22m[39m task:done commit tag validation[2m > [22mtask:done succeeds in non-git directory [33m 717[2mms[22m[39m
+ [32m✓[39m test/round2-integration.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4628[2mms[22m[39m
+   [33m[2m✓[22m[39m round 2 integration tests[2m > [22mfull guard workflow: preview → security-scan → record → history [33m 2717[2mms[22m[39m
+   [33m[2m✓[22m[39m round 2 integration tests[2m > [22mcoverage-gate checks real Istanbul report [33m 555[2mms[22m[39m
+   [33m[2m✓[22m[39m round 2 integration tests[2m > [22mscenarios export/import round-trip [33m 874[2mms[22m[39m
+   [33m[2m✓[22m[39m round 2 integration tests[2m > [22mstatus shows guard preview with countdown [33m 479[2mms[22m[39m
+ [32m✓[39m test/memory.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 4663[2mms[22m[39m
+   [33m[2m✓[22m[39m memory runtime commands[2m > [22mmemory:set-feature creates and replaces Current Feature inside Forge [33m 741[2mms[22m[39m
+   [33m[2m✓[22m[39m memory runtime commands[2m > [22mmemory:set-feature replaces an existing Current Feature marker without a colon [33m 694[2mms[22m[39m
+   [33m[2m✓[22m[39m memory runtime commands[2m > [22mmemory:set-feature does not treat Forge Runtime as the Forge section [33m 587[2mms[22m[39m
+   [33m[2m✓[22m[39m memory runtime commands[2m > [22mmemory:set-feature preserves inline Current Feature text inside Forge notes [33m 509[2mms[22m[39m
+   [33m[2m✓[22m[39m memory runtime commands[2m > [22mmemory:complete-feature removes current feature, appends completed entry, and verifies by reading again [33m 699[2mms[22m[39m
+   [33m[2m✓[22m[39m memory runtime commands[2m > [22mmemory:complete-feature removes colonless current feature and reuses colonless completed section [33m 516[2mms[22m[39m
+   [33m[2m✓[22m[39m memory runtime commands[2m > [22mmemory commands read configured memory_file [33m 431[2mms[22m[39m
+   [33m[2m✓[22m[39m memory runtime commands[2m > [22mmemory:set-feature fails without config and does not create an arbitrary memory file [33m 351[2mms[22m[39m
+ [32m✓[39m test/phase2-stubs.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 5096[2mms[22m[39m
+   [33m[2m✓[22m[39m phase 2 stub interfaces[2m > [22mguard:preview returns security preview for a synthetic next task [33m 730[2mms[22m[39m
+   [33m[2m✓[22m[39m phase 2 stub interfaces[2m > [22mguard:preview simulates completing the next task before checking batch-review [33m 603[2mms[22m[39m
+   [33m[2m✓[22m[39m phase 2 stub interfaces[2m > [22mguard:run delegates non-scanner types with ok=true [33m 533[2mms[22m[39m
+   [33m[2m✓[22m[39m phase 2 stub interfaces[2m > [22mguard:coverage-check returns ok=false when no coverage report exists [33m 591[2mms[22m[39m
+   [33m[2m✓[22m[39m phase 2 stub interfaces[2m > [22mscenarios:export fails with ok=false when --template is missing [33m 585[2mms[22m[39m
+   [33m[2m✓[22m[39m phase 2 stub interfaces[2m > [22mscenarios:import fails with ok=false when --template is missing [33m 448[2mms[22m[39m
+   [33m[2m✓[22m[39m phase 2 stub interfaces[2m > [22mscenarios:archive copies scenarios into the feature specs archive [33m 440[2mms[22m[39m
+   [33m[2m✓[22m[39m phase 2 stub interfaces[2m > [22mscenarios:archive fails when progress has no feature [33m 411[2mms[22m[39m
+   [33m[2m✓[22m[39m phase 2 stub interfaces[2m > [22mscenarios:archive rejects unsafe feature slugs [33m 400[2mms[22m[39m
+   [33m[2m✓[22m[39m phase 2 stub interfaces[2m > [22mscenarios:archive fails when scenarios file is missing [33m 350[2mms[22m[39m
+ [32m✓[39m test/phase5-verify.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 5151[2mms[22m[39m
+   [33m[2m✓[22m[39m Phase 5 /verify gstack + scanner integration[2m > [22mgstack-basic skipped with reason when gstack_installed is false [33m 1233[2mms[22m[39m
+   [33m[2m✓[22m[39m Phase 5 /verify gstack + scanner integration[2m > [22mgstack-basic skipped with reason when verify.gstack_basic disabled [33m 904[2mms[22m[39m
+   [33m[2m✓[22m[39m Phase 5 /verify gstack + scanner integration[2m > [22msecurity_scan included as a step entry, ok with no findings [33m 1085[2mms[22m[39m
+   [33m[2m✓[22m[39m Phase 5 /verify gstack + scanner integration[2m > [22mdependency_audit included as a step entry, ok with no findings [33m 731[2mms[22m[39m
+   [33m[2m✓[22m[39m Phase 5 /verify gstack + scanner integration[2m > [22me2e/visual/performance skipped when disabled [33m 636[2mms[22m[39m
+   [33m[2m✓[22m[39m Phase 5 /verify gstack + scanner integration[2m > [22me2e marked skipped or failed when enabled but gstack missing on PATH [33m 559[2mms[22m[39m
+ [32m✓[39m test/commit-test-gate.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 5664[2mms[22m[39m
+   [33m[2m✓[22m[39m commit test freshness gate[2m > [22mcommit rejects when no last-test.json [33m 1481[2mms[22m[39m
+   [33m[2m✓[22m[39m commit test freshness gate[2m > [22mcommit rejects when last test failed [33m 1580[2mms[22m[39m
+   [33m[2m✓[22m[39m commit test freshness gate[2m > [22mcommit rejects when test results are stale [33m 1268[2mms[22m[39m
+   [33m[2m✓[22m[39m commit test freshness gate[2m > [22mcommit succeeds when test results are fresh and passing [33m 1332[2mms[22m[39m
+ [32m✓[39m test/guard-scanners-cli.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 5484[2mms[22m[39m
+   [33m[2m✓[22m[39m guard:security-scan[2m > [22mreturns ok=false with findings for a file containing a hardcoded password [33m 691[2mms[22m[39m
+   [33m[2m✓[22m[39m guard:security-scan[2m > [22mreturns ok=true for a clean file [33m 579[2mms[22m[39m
+   [33m[2m✓[22m[39m guard:dependency-audit[2m > [22mreturns ok=true and license_ok=true for lodash (MIT) when MIT is in allowlist [33m 2340[2mms[22m[39m
+   [33m[2m✓[22m[39m guard:coverage-check[2m > [22mreturns ok=true when istanbul report meets unit target of 80% [33m 474[2mms[22m[39m
+   [33m[2m✓[22m[39m guard:run[2m > [22msecurity-scan type returns ok=false when changed files contain a JWT secret [33m 1396[2mms[22m[39m
+ [32m✓[39m test/init-status-migrate.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 7173[2mms[22m[39m
+   [33m[2m✓[22m[39m init, status, doctor, and migration commands[2m > [22minit auto-detects npm test and writes v2 config with idle progress [33m 603[2mms[22m[39m
+   [33m[2m✓[22m[39m init, status, doctor, and migration commands[2m > [22minit creates Forge directories and ensures a Forge memory section [33m 634[2mms[22m[39m
+   [33m[2m✓[22m[39m init, status, doctor, and migration commands[2m > [22minit does not use superpowers availability as gstack detection [33m 668[2mms[22m[39m
+   [33m[2m✓[22m[39m init, status, doctor, and migration commands[2m > [22minit classifies unknown npm test scripts as npm [33m 711[2mms[22m[39m
+   [33m[2m✓[22m[39m init, status, doctor, and migration commands[2m > [22minit rejects existing v2 config without overwriting it [33m 697[2mms[22m[39m
+   [33m[2m✓[22m[39m init, status, doctor, and migration commands[2m > [22minit rejects existing v1 config and leaves legacy fields unchanged [33m 415[2mms[22m[39m
+   [33m[2m✓[22m[39m init, status, doctor, and migration commands[2m > [22mstatus reports stale_progress when progress.json contains a removed status enum [33m 997[2mms[22m[39m
+   [33m[2m✓[22m[39m init, status, doctor, and migration commands[2m > [22mstatus reports v1 config migration_required without migrating [33m 326[2mms[22m[39m
+   [33m[2m✓[22m[39m init, status, doctor, and migration commands[2m > [22mstatus reports migration_required before validating legacy progress [33m 361[2mms[22m[39m
+   [33m[2m✓[22m[39m init, status, doctor, and migration commands[2m > [22mstatus reports idle when progress is missing [33m 652[2mms[22m[39m
+   [33m[2m✓[22m[39m init, status, doctor, and migration commands[2m > [22mmigrate converts v1 test settings to schema-valid v2 test_profiles [33m 333[2mms[22m[39m
+   [33m[2m✓[22m[39m init, status, doctor, and migration commands[2m > [22mmigrate falls back to default guards when legacy guards are invalid [33m 304[2mms[22m[39m
+ [32m✓[39m test/phase.test.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 7344[2mms[22m[39m
+   [33m[2m✓[22m[39m phase transition commands[2m > [22mfeature:start writes complete planning progress [33m 562[2mms[22m[39m
+   [33m[2m✓[22m[39m phase transition commands[2m > [22mfeature:start rejects active progress without modifying progress [33m 604[2mms[22m[39m
+   [33m[2m✓[22m[39m phase transition commands[2m > [22mplan:register extracts markdown tasks into pending progress tasks [33m 619[2mms[22m[39m
+   [33m[2m✓[22m[39m phase transition commands[2m > [22mplan:register rejects non-planning progress without modifying progress [33m 632[2mms[22m[39m
+   [33m[2m✓[22m[39m phase transition commands[2m > [22mplan:register rejects markdown without task headings without modifying progress [33m 660[2mms[22m[39m
+   [33m[2m✓[22m[39m phase transition commands[2m > [22mphase:advance blocks non-planning progress without modifying progress [33m 567[2mms[22m[39m
+   [33m[2m✓[22m[39m phase transition commands[2m > [22mphase:advance blocks planning progress when scenarios are missing [33m 415[2mms[22m[39m
+   [33m[2m✓[22m[39m phase transition commands[2m > [22mphase:advance blocks scenarios without P0 coverage [33m 427[2mms[22m[39m
+   [33m[2m✓[22m[39m phase transition commands[2m > [22mphase:advance moves planning progress with P0 scenarios to executing [33m 405[2mms[22m[39m
+   [33m[2m✓[22m[39m phase transition commands[2m > [22mphase:complete blocks non-executing progress without modifying progress [33m 382[2mms[22m[39m
+   [33m[2m✓[22m[39m phase transition commands[2m > [22mphase:complete blocks when any task is not done or deferred [33m 328[2mms[22m[39m
+   [33m[2m✓[22m[39m phase transition commands[2m > [22mphase:complete moves executing progress with finished tasks to execution_complete [33m 336[2mms[22m[39m
+ [32m✓[39m test/test-verify.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 7600[2mms[22m[39m
+   [33m[2m✓[22m[39m test and verification commands[2m > [22mforge test --profile default runs configured default profile command [33m 678[2mms[22m[39m
+   [33m[2m✓[22m[39m test and verification commands[2m > [22mforge test --all-profiles runs every profile and fails if any profile fails [33m 997[2mms[22m[39m
+   [33m[2m✓[22m[39m test and verification commands[2m > [22mforge test --coverage uses coverage_command when a profile provides one [33m 903[2mms[22m[39m
+   [33m[2m✓[22m[39m test and verification commands[2m > [22mforge test does not modify progress [33m 845[2mms[22m[39m
+   [33m[2m✓[22m[39m test and verification commands[2m > [22mforge test fails for an unknown profile without running configured commands [33m 462[2mms[22m[39m
+   [33m[2m✓[22m[39m test and verification commands[2m > [22mforge verify --coverage runs tests and package build then records passed verification [33m 1412[2mms[22m[39m
+   [33m[2m✓[22m[39m test and verification commands[2m > [22mforge verify writes failed verification when a test command fails [33m 464[2mms[22m[39m
+   [33m[2m✓[22m[39m test and verification commands[2m > [22mforge verify detects go.mod and runs go build ./... [33m 447[2mms[22m[39m
+   [33m[2m✓[22m[39m test and verification commands[2m > [22mforge verify detects Cargo.toml and runs cargo build [33m 448[2mms[22m[39m
+   [33m[2m✓[22m[39m test and verification commands[2m > [22mforge verify runs all configured test_profiles, not only 'default' [33m 481[2mms[22m[39m
+   [33m[2m✓[22m[39m test and verification commands[2m > [22mforge verify fails if any non-default profile fails [33m 460[2mms[22m[39m
+ [32m✓[39m test/git-audit-reset.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 8190[2mms[22m[39m
+   [33m[2m✓[22m[39m git, audit, and reset commands[2m > [22mcommit --message --tag stages all changes and commits with the forge tag [33m 2343[2mms[22m[39m
+   [33m[2m✓[22m[39m git, audit, and reset commands[2m > [22mcommit rejects running from a nested Forge root inside a parent git repo [33m 1628[2mms[22m[39m
+   [33m[2m✓[22m[39m git, audit, and reset commands[2m > [22mcommit returns nothing to commit when the worktree is clean [33m 1206[2mms[22m[39m
+   [33m[2m✓[22m[39m git, audit, and reset commands[2m > [22mcommit:check reports found and missing forge task commits [33m 866[2mms[22m[39m
+   [33m[2m✓[22m[39m git, audit, and reset commands[2m > [22maudit reports progress state, done task commit status, and inconsistencies [33m 854[2mms[22m[39m
+   [33m[2m✓[22m[39m git, audit, and reset commands[2m > [22maudit succeeds without progress [33m 428[2mms[22m[39m
+   [33m[2m✓[22m[39m git, audit, and reset commands[2m > [22mreset --backup copies existing progress and writes idle progress [33m 413[2mms[22m[39m
+ [32m✓[39m test/task-guard.test.ts [2m([22m[2m43 tests[22m[2m)[22m[33m 14081[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:start blocks planning progress without modifying progress [33m 662[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:done blocks planning progress without modifying progress [33m 526[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:fail blocks planning progress without modifying progress [33m 613[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:defer blocks planning progress without modifying progress [33m 653[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:start blocks idle progress without modifying progress [33m 619[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:done blocks idle progress without modifying progress [33m 523[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:fail blocks idle progress without modifying progress [33m 433[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:defer blocks idle progress without modifying progress [33m 425[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:start blocks execution_complete progress without modifying progress [33m 392[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:done blocks execution_complete progress without modifying progress [33m 350[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:fail blocks execution_complete progress without modifying progress [33m 329[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:done --id records completed_at, recomputes completed_tasks, and skips batch guard at task 1 [33m 364[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:done --id 6 triggers batch-review [33m 323[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:done triggers batch-review every 6 tasks when every_n_tasks is omitted [33m 322[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:done triggers security-scan when enabled and task title or tags contains token [33m 314[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:done returns simultaneously triggered guards in deterministic order [33m 319[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:done batch-review task_range starts after the last batch guard [33m 315[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22menabled dependency-audit does not trigger without deterministic keyword basis [33m 314[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:done triggers performance-budget on title or tag keyword case-insensitively [33m 315[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:done triggers human-review when requires_human_review is true [33m 313[2mms[22m[39m
+   [33m[2m✓[22m[39m task and guard runtime commands[2m > [22mtask:start rejects non-pending except existing in_progress is idempotent [33m 426[2mms[22m[39m
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/skills-contract.test.ts > Forge skill contracts > skills/next/SKILL.md does not reintroduce direct Forge JSON state mutation instructions
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "progress.json — run: forge reset",
++   "progress.json — run: forge reset",
++ ]
+
+ ❯ test/skills-contract.test.ts:108:64
+    106|     "%s does not reintroduce direct Forge JSON state mutation instruct…
+    107|     (file) => {
+    108|       expect(directStateMutationInstructions(readSkill(file))).toEqual…
+       |                                                                ^
+    109|     },
+    110|   );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m26 passed[39m[22m[90m (27)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m273 passed[39m[22m[90m (274)[39m
+[2m   Start at [22m 09:57:23
+[2m   Duration [22m 15.26s[2m (transform 1.63s, setup 0ms, collect 8.60s, tests 105.32s, environment 7ms, prepare 6.90s)[22m
+

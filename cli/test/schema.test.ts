@@ -14,7 +14,6 @@ const validV2Config = {
   version: "2.0",
   forge_cli_version: "0.2.0",
   memory_file: "AGENTS.md",
-  test_mode: "normal",
   gstack_installed: false,
   project_type: "existing",
   test_profiles: {
@@ -42,6 +41,7 @@ const validProgress = {
   plan_path: null,
   total_tasks: 1,
   completed_tasks: 0,
+  phase_complete_attempts: 0,
   tasks: [
     {
       id: 1,
@@ -52,7 +52,6 @@ const validProgress = {
   guard_history: [],
   verification: {
     status: "pending",
-    test_mode: "normal",
     last_run: null,
     report_path: null,
   },
@@ -83,7 +82,6 @@ describe("schema validation", () => {
     const result = validateJsonFile(configSchemaPath, {
       version: "1.0",
       memory_file: "AGENTS.md",
-      test_mode: "normal",
       project_type: "existing",
       test_command: "npm test",
       test_framework: "vitest",
@@ -198,11 +196,11 @@ describe("schema validation", () => {
       version: "1.0",
       feature: null,
       status: "idle",
+      phase_complete_attempts: 0,
       tasks: [],
       guard_history: [],
       verification: {
         status: "pending",
-        test_mode: "normal",
         last_run: null,
         report_path: null,
       },
@@ -221,7 +219,7 @@ describe("schema validation", () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(result.errors.join("\n")).toMatch(/status|test_mode|required/i);
+    expect(result.errors.join("\n")).toMatch(/status|attempts|required/i);
   });
 
   test("schema:validate rejects invalid progress date-time without stderr warnings", () => {

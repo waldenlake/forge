@@ -8,7 +8,6 @@ import {
 
 type LegacyConfig = {
   memory_file?: unknown;
-  test_mode?: unknown;
   gstack_installed?: unknown;
   project_type?: unknown;
   test_command?: unknown;
@@ -22,10 +21,6 @@ function validMemoryFile(value: unknown): value is MemoryFile {
 
 function validProjectType(value: unknown): value is ProjectType {
   return value === "new" || value === "existing";
-}
-
-function validTestMode(value: unknown): value is ForgeConfig["test_mode"] {
-  return value === "normal" || value === "enhanced";
 }
 
 function legacyString(value: unknown): string | undefined {
@@ -130,9 +125,6 @@ export function migrateConfig1To2(cwd: string, value: unknown): ForgeConfig {
     memory_file: validMemoryFile(legacy.memory_file)
       ? legacy.memory_file
       : defaults.memory_file,
-    test_mode: validTestMode(legacy.test_mode)
-      ? legacy.test_mode
-      : defaults.test_mode,
     gstack_installed:
       typeof legacy.gstack_installed === "boolean"
         ? legacy.gstack_installed

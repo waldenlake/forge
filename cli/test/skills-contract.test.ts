@@ -4,39 +4,35 @@ import { describe, expect, test } from "vitest";
 
 const repoRoot = resolve(import.meta.dirname, "../..");
 
-const skillFiles = [
+// Phase 6 skill split:
+// - /start, /planning, /executing, /verify, /done are the 5 phase skills.
+// - /next is a thin status router; it does NOT call task or verify commands.
+// - /resume, /bugfix, /session-handoff, /progress-tracking still exist.
+// - /scenarios is invoked by /planning.
+const skillsCallingForge = [
   "skills/start/SKILL.md",
+  "skills/planning/SKILL.md",
+  "skills/executing/SKILL.md",
+  "skills/verify/SKILL.md",
+  "skills/done/SKILL.md",
   "skills/next/SKILL.md",
   "skills/progress-tracking/SKILL.md",
-  "skills/done/SKILL.md",
   "skills/resume/SKILL.md",
   "skills/bugfix/SKILL.md",
   "skills/session-handoff/SKILL.md",
   "skills/using-forge/SKILL.md",
 ] as const;
 
-const orchestrationSkillFiles = [
-  "skills/start/SKILL.md",
-  "skills/next/SKILL.md",
-  "skills/progress-tracking/SKILL.md",
-  "skills/done/SKILL.md",
-  "skills/resume/SKILL.md",
-  "skills/bugfix/SKILL.md",
-  "skills/session-handoff/SKILL.md",
-] as const;
+// Skills that must NOT instruct direct .forge/*.json edits.
+const orchestrationSkillFiles = skillsCallingForge.filter(
+  (file) => file !== "skills/using-forge/SKILL.md",
+);
 
 const scenarioSkillFile = "skills/scenarios/SKILL.md";
 
-const cliResolutionBlock = `## Forge CLI
+const cliResolutionLine = `FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/plugins/forge/cli/dist/index.js" ]; then echo "node $HOME/.config/opencode/plugins/forge/cli/dist/index.js"; else echo ".forge/bin/forge"; fi; })`;
 
-Before calling any Forge Runtime command, resolve the executable:
-
-\`\`\`bash
-FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/plugins/forge/cli/dist/index.js" ]; then echo "node $HOME/.config/opencode/plugins/forge/cli/dist/index.js"; else echo ".forge/bin/forge"; fi; })
-\`\`\`
-
-All Runtime commands output JSON by default. Read the JSON, report blocking
-errors exactly, and do not edit \`.forge/*.json\` directly.`;
+const stateMutationProhibition = "do not edit `.forge/*.json` directly";
 
 function readSkill(relativePath: string): string {
   return readFileSync(resolve(repoRoot, relativePath), "utf8");
@@ -50,7 +46,6 @@ function indexesInOrder(content: string, snippets: string[]): boolean {
     if (next === -1) {
       return false;
     }
-
     previous = next;
     return true;
   });
@@ -71,18 +66,19 @@ function directStateMutationInstructions(content: string): string[] {
       !/\bdo not\b/i.test(match) &&
       !/\bmust not\b/i.test(match) &&
       !/\bwithout\b/i.test(match) &&
-      !/\bRuntime\b/i.test(match),
+      !/\bRuntime\b/i.test(match) &&
+      !/\bnever\b/i.test(match) &&
+      !/\bforge\s+reset\b/i.test(match),
   );
 }
 
 describe("Forge skill contracts", () => {
-  test.each(skillFiles)("%s resolves the Forge CLI before Runtime calls", (file) => {
-    expect(readSkill(file)).toContain(cliResolutionBlock);
+  test.each(skillsCallingForge)("%s resolves the Forge CLI before Runtime calls", (file) => {
+    expect(readSkill(file)).toContain(cliResolutionLine);
   });
 
-  test.each(skillFiles)("%s can resolve OpenCode plugin runtime before project init", (file) => {
+  test.each(skillsCallingForge)("%s can resolve OpenCode plugin runtime", (file) => {
     const content = readSkill(file);
-
     expect(content).toContain("$HOME/.config/opencode/plugins/forge/cli/dist/index.js");
     expect(
       indexesInOrder(content, [
@@ -94,11 +90,16 @@ describe("Forge skill contracts", () => {
   });
 
   test.each(orchestrationSkillFiles)(
-    "%s delegates state mutation to Runtime instead of editing Forge JSON",
+    "%s prohibits direct .forge/*.json edits",
     (file) => {
       const content = readSkill(file);
-
-      expect(content).toContain("do not edit `.forge/*.json` directly");
+      // Each skill must contain a wording that forbids direct JSON edits.
+      // Tolerate either the long-form ("do not edit") or the short-form
+      // ("never edit `.forge/*.json` directly").
+      const ok =
+        content.includes(stateMutationProhibition) ||
+        /never edit `\.forge\/\*\.json` directly/.test(content);
+      expect(ok, `${file} must prohibit direct .forge/*.json edits`).toBe(true);
     },
   );
 
@@ -125,72 +126,59 @@ describe("Forge skill contracts", () => {
     ]);
   });
 
-  test("using-forge states Runtime ownership and v2 migration rules", () => {
+  test("using-forge documents Runtime ownership and v2 migration rules", () => {
     const content = readSkill("skills/using-forge/SKILL.md");
 
-    expect(content).toContain(
-      "Runtime owns reality-changing operations",
-    );
-    expect(content).toContain(
-      "Direct edits to `.forge/*.json` are invalid during active Forge work",
-    );
-    expect(content).toContain("v2 config is not backward-compatible");
+    expect(content).toContain("single source of truth");
+    expect(content).toMatch(/MUST NOT|do not|never/i);
+    expect(content).toContain("v2 is not backward-compatible");
     expect(content).toContain("forge migrate --from 1.0 --to 2.0");
   });
 
-  test("next skill documents task execution, guard, and verification commands", () => {
+  // /next is a thin router. It must NOT contain phase-specific CLI calls.
+  test("next skill is a thin router and does not run phase commands", () => {
     const content = readSkill("skills/next/SKILL.md");
 
-    for (const command of [
-      "task:start",
-      "task:done",
-      "guard:record",
-      "$FORGE_CMD verify --coverage",
-    ]) {
-      expect(content).toContain(command);
+    // Router-only: dispatches by status to the phase skills.
+    expect(content).toContain("status router");
+    for (const phaseSkill of ["/start", "/planning", "/executing", "/verify", "/done"]) {
+      expect(content).toContain(phaseSkill);
     }
 
-    // Subagent owns testing and committing — /next must not re-run them
-    expect(content).not.toContain("$FORGE_CMD test --coverage");
-    expect(content).not.toContain("forge commit");
+    // Phase-specific commands belong to the phase skills, not /next.
+    expect(content).not.toContain("$FORGE_CMD task:start");
+    expect(content).not.toContain("$FORGE_CMD task:done");
+    expect(content).not.toContain("$FORGE_CMD verify --coverage");
+    expect(content).not.toContain("$FORGE_CMD phase:advance");
   });
 
-  test("next registers the plan before advancing to execution", () => {
+  test("planning skill registers the plan before advancing to execution", () => {
     expect(
-      indexesInOrder(readSkill("skills/next/SKILL.md"), [
-        "plan:register --plan <path>",
+      indexesInOrder(readSkill("skills/planning/SKILL.md"), [
+        "schema:validate --file .forge/scenarios.json",
+        "plan:register --plan",
         "phase:advance",
       ]),
     ).toBe(true);
   });
 
-  test("done skill documents finish, archive, memory, and backup reset commands", () => {
-    const content = readSkill("skills/done/SKILL.md");
-
-    for (const command of [
-      "phase:finish",
-      "scenarios:archive",
-      "memory:complete-feature",
-      "reset --backup",
-    ]) {
+  test("executing skill drives task lifecycle and phase:complete gate", () => {
+    const content = readSkill("skills/executing/SKILL.md");
+    for (const command of ["task:start", "task:done", "phase:complete"]) {
       expect(content).toContain(command);
     }
   });
 
-  test("start validates scenarios before starting the Runtime feature", () => {
-    const content = readSkill("skills/start/SKILL.md");
-
-    expect(content).toContain("explicit `<spec_path>`");
-    expect(content).toContain("explicit `<feature_slug>`");
+  test("verify skill runs forge verify and promotes via phase:verify-pass", () => {
     expect(
-      indexesInOrder(content, [
-        "schema:validate --file .forge/scenarios.json",
-        "feature:start --feature <slug> --spec <path>",
+      indexesInOrder(readSkill("skills/verify/SKILL.md"), [
+        "$FORGE_CMD verify --coverage",
+        "phase:verify-pass",
       ]),
     ).toBe(true);
   });
 
-  test("done finishes before archive, memory completion, and reset fallback", () => {
+  test("done skill finishes phase, archives scenarios, updates memory, then resets", () => {
     expect(
       indexesInOrder(readSkill("skills/done/SKILL.md"), [
         "phase:finish",
@@ -201,7 +189,21 @@ describe("Forge skill contracts", () => {
     ).toBe(true);
   });
 
-  test("scenarios skill accepts explicit start inputs without progress state", () => {
+  test("start runs doctor and feature:start without doing planning work", () => {
+    const content = readSkill("skills/start/SKILL.md");
+
+    // /start handles env check + feature registration; planning belongs to
+    // /planning.
+    expect(content).toContain("$FORGE_CMD doctor");
+    expect(content).toContain("feature:start --feature <slug>");
+
+    // /start no longer drives brainstorming or scenarios — those moved to
+    // /planning.
+    expect(content).not.toContain("schema:validate --file .forge/scenarios.json");
+    expect(content).not.toContain("scenarios skill with");
+  });
+
+  test("scenarios skill accepts explicit /planning inputs without progress state", () => {
     const content = readSkill(scenarioSkillFile);
 
     expect(content).toContain("explicit `<spec_path>` from the calling skill");

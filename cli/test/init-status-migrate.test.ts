@@ -58,7 +58,6 @@ function writeV1Config(cwd: string): void {
       {
         version: "1.0",
         memory_file: "AGENTS.md",
-        test_mode: "normal",
         gstack_installed: false,
         project_type: "existing",
         test_command: "npm test -- --runInBand",
@@ -139,11 +138,11 @@ describe("init, status, doctor, and migration commands", () => {
         plan_path: null,
         total_tasks: 0,
         completed_tasks: 0,
+        phase_complete_attempts: 0,
         tasks: [],
         guard_history: [],
         verification: {
           status: "pending",
-          test_mode: "normal",
           last_run: null,
           report_path: null,
         },
@@ -278,6 +277,56 @@ describe("init, status, doctor, and migration commands", () => {
     });
   });
 
+  test("status reports stale_progress when progress.json contains a removed status enum", () => {
+    withTempProject((cwd) => {
+      // v2 config + a pre-Phase-1 progress.json carrying the now-removed
+      // "verification_complete" status. Status must not crash; it must surface
+      // a structured stale_progress error pointing the user at `reset --backup`.
+      runForge(cwd, [
+        "init",
+        "--auto-detect",
+        "--superpowers-available",
+        "true",
+      ]);
+
+      writeFileSync(
+        join(cwd, ".forge", "progress.json"),
+        JSON.stringify({
+          version: "1.0",
+          feature: "stale-feature",
+          status: "verification_complete",
+          created_at: "2026-05-26T00:00:00.000Z",
+          updated_at: "2026-05-26T00:00:00.000Z",
+          spec_path: null,
+          plan_path: null,
+          total_tasks: 0,
+          completed_tasks: 0,
+          tasks: [],
+          guard_history: [],
+          verification: {
+            status: "passed",
+            test_mode: "normal",
+            last_run: null,
+            report_path: null,
+          },
+        }),
+        "utf8",
+      );
+
+      const result = runForge(cwd, ["status"]);
+
+      expect(result.status).toBe(1);
+      const payload = parseStdout(result);
+      expect(payload).toMatchObject({
+        ok: false,
+        stale_progress: true,
+        status: "verification_complete",
+        recovery: "forge reset --backup",
+      });
+      expect(typeof payload.error).toBe("string");
+    });
+  });
+
   test("status reports v1 config migration_required without migrating", () => {
     withTempProject((cwd) => {
       writeV1Config(cwd);
@@ -305,6 +354,7 @@ describe("init, status, doctor, and migration commands", () => {
         JSON.stringify({
           version: "1.0",
           status: "idle",
+          phase_complete_attempts: 0,
           tasks: [],
         }),
         "utf8",

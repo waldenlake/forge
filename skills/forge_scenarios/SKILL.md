@@ -1,5 +1,5 @@
 ---
-name: scenarios
+name: forge:scenarios
 description: Generate structured test scenarios from a design spec
 ---
 

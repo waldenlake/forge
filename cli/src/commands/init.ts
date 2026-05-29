@@ -8,10 +8,10 @@ import {
   detectProjectType,
   detectTestProfiles,
 } from "../lib/detect.js";
+import { gitNexusBaseline, isGitNexusInstalled } from "../lib/gitnexus.js";
+import { FORGE_CLI_VERSION } from "../lib/version.js";
 import { defaultConfig, writeConfig } from "../state/config.js";
 import { idleProgress, progressPath, writeProgress } from "../state/progress.js";
-
-const FORGE_CLI_VERSION = "0.2.0";
 
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
@@ -139,11 +139,22 @@ export function registerInitCommand(program: Command): void {
 
       ensureForgeSection(cwd, detected.memory_file, created);
 
+      // GitNexus baseline index: non-blocking. Failure is a warning, not a
+      // hard error, because init must succeed for the project to be usable.
+      let gitnexus_baseline: { ok: boolean; error?: string } = { ok: false, error: "not installed" };
+      if (isGitNexusInstalled()) {
+        const baselineResult = gitNexusBaseline(cwd);
+        gitnexus_baseline = baselineResult.ok
+          ? { ok: true }
+          : { ok: false, error: baselineResult.stderr.slice(0, 300) };
+      }
+
       writeJson({
         ok: true,
         detected,
         created,
         forge_cli_version: FORGE_CLI_VERSION,
+        gitnexus_baseline,
         ...(monorepoResult?.monorepo ? { monorepo: true } : {}),
       });
     });

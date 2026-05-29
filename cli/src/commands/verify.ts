@@ -1,12 +1,24 @@
 import type { Command } from "commander";
 import {
-  existsSync,
   mkdirSync,
-  readFileSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { detectBuildCommand } from "../lib/buildCheck.js";
+import { git, isGitRepo } from "../lib/git.js";
+import {
+  gstackContract,
+  gstackE2E,
+  gstackPerformance,
+  gstackSmoke,
+  gstackVisual,
+  isGstackInstalled,
+  type GstackResult,
+} from "../lib/gstack.js";
 import { runShellCommand, type ShellCommandResult } from "../lib/runner.js";
+import { runDependencyAudit } from "../lib/scanners/dependency.js";
+import { scanFiles } from "../lib/scanners/security.js";
+import type { Severity } from "../lib/scanners/security.js";
 import { readConfig, type ForgeConfig } from "../state/config.js";
 import {
   type ForgeProgress,
@@ -24,16 +36,46 @@ type VerifyCommandOptions = {
   coverage?: boolean;
 };
 
-type BuildCommand = {
-  command: string;
-  working_dir: string;
+type FailureClass = "implementation" | "security" | "infra" | null;
+
+type VerifyResultEntry = {
+  name: string;
+  ok: boolean;
+  class: FailureClass;
+  skipped?: boolean;
+  skip_reason?: string;
+  detail?: ShellCommandResult | TestRunResult | GstackResult | unknown;
 };
 
 type VerificationReport = {
   ok: boolean;
   status: "passed" | "failed";
+  /** Aggregated test profile run (REQUIRED step). */
   tests: TestRunResult;
+  /** Build command output (REQUIRED step when a build command is detected). */
   build: ShellCommandResult | null;
+  /**
+   * Per-step results with failure classification. /verify failure routing in
+   * the skill layer:
+   *  - any entry with class:"implementation"  → user must fix code (subagent
+   *    re-entry path; attempts++).
+   *  - any entry with class:"security"        → CVE / discrete bug; route to
+   *    /bugfix.
+   *  - any entry with class:"infra"           → environment / build tooling
+   *    issue, surface verbatim and STOP.
+   *  - skipped:true                           → step intentionally not run
+   *    (e.g. gstack not installed); does not affect ok.
+   *  - class:null                             → step passed.
+   */
+  results: VerifyResultEntry[];
+  /**
+   * Highest-priority failure class for the run. The skill consumes this to
+   * decide whether to re-enter subagent (implementation), surface to /bugfix
+   * (security), STOP (infra), or proceed to phase:verify-pass (null).
+   * Priority: security > infra > implementation > null.
+   */
+  failure_class: FailureClass;
+  attempts: number;
   report_path: string;
   duration_ms: number;
 };
@@ -42,47 +84,12 @@ function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
 }
 
-function packageBuildCommand(root: string): BuildCommand | null {
-  const packageJsonPath = join(root, "package.json");
-  if (!existsSync(packageJsonPath)) {
-    return null;
-  }
-
-  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
-    scripts?: Record<string, unknown>;
-  };
-
-  if (typeof packageJson.scripts?.build === "string") {
-    return { command: "npm run build", working_dir: "." };
-  }
-
-  return null;
-}
-
-function detectBuildCommand(root: string): BuildCommand | null {
-  const npmBuild = packageBuildCommand(root);
-  if (npmBuild) {
-    return npmBuild;
-  }
-
-  if (existsSync(join(root, "go.mod"))) {
-    return { command: "go build ./...", working_dir: "." };
-  }
-
-  if (existsSync(join(root, "Cargo.toml"))) {
-    return { command: "cargo build", working_dir: "." };
-  }
-
-  return null;
-}
-
 function reportTimestamp(value: string): string {
   return value.replace(/[:.]/g, "-");
 }
 
 function verificationProgress(
   progress: ForgeProgress,
-  config: ForgeConfig,
   status: ForgeProgress["verification"]["status"],
   update: Partial<ForgeProgress["verification"]> = {},
 ): ForgeProgress {
@@ -91,11 +98,75 @@ function verificationProgress(
     updated_at: nowIso(),
     verification: {
       ...progress.verification,
-      test_mode: config.test_mode,
       status,
       ...update,
     },
   };
+}
+
+function block(reason: string, extra: Record<string, unknown> = {}): void {
+  process.exitCode = 1;
+  writeJson({ ok: false, blocked_by: reason, ...extra });
+}
+
+const VERIFY_RETRY_LIMIT = 3;
+
+/**
+ * Reduce a list of result entries to the highest-priority failure class.
+ * Priority: security > infra > implementation > null.
+ */
+function aggregateFailureClass(results: VerifyResultEntry[]): FailureClass {
+  if (results.some((r) => r.class === "security")) return "security";
+  if (results.some((r) => r.class === "infra")) return "infra";
+  if (results.some((r) => r.class === "implementation")) return "implementation";
+  return null;
+}
+
+/** Wrap a GstackResult into a VerifyResultEntry tagged with implementation class on failure. */
+function gstackResultEntry(name: string, run: GstackResult): VerifyResultEntry {
+  return {
+    name,
+    ok: run.ok,
+    class: run.ok ? null : "implementation",
+    detail: run,
+  };
+}
+
+/** Skipped step entry — used when a check is config-disabled or tool missing. */
+function skippedEntry(name: string, reason: string): VerifyResultEntry {
+  return { name, ok: true, class: null, skipped: true, skip_reason: reason };
+}
+
+function verifyConfig(config: ForgeConfig): NonNullable<ForgeConfig["verify"]> {
+  return config.verify ?? {};
+}
+
+function isEnabled(
+  cfg: NonNullable<ForgeConfig["verify"]>,
+  key: keyof NonNullable<ForgeConfig["verify"]>,
+  defaultValue: boolean,
+): boolean {
+  const entry = cfg[key];
+  if (!entry) return defaultValue;
+  return entry.enabled;
+}
+
+/**
+ * Enumerate scannable source files under cwd. Prefers git ls-files (fast,
+ * respects .gitignore); falls back to an empty list outside a git repo so
+ * scanFiles is a no-op rather than scanning random binaries.
+ */
+function listScanTargets(cwd: string): string[] {
+  if (!isGitRepo(cwd)) {
+    return [];
+  }
+  const result = git(cwd, ["ls-files"]);
+  if (!result.ok) return [];
+  return result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((rel) => join(cwd, rel));
 }
 
 export function registerVerifyCommand(program: Command): void {
@@ -122,31 +193,164 @@ export function registerVerifyCommand(program: Command): void {
         return;
       }
 
+      // Entry gate: /verify only runs after /executing has promoted state to
+      // execution_complete. Before that, verification is meaningless because
+      // the implementation may still be in flight.
+      if (progress.status !== "execution_complete") {
+        block("status is not execution_complete", {
+          from: progress.status,
+        });
+        return;
+      }
+
+      // Retry budget: implementation-class failures should re-enter subagent
+      // up to VERIFY_RETRY_LIMIT-1 times. Past that, halt and require human
+      // intervention rather than burning resources in a loop.
+      const previousAttempts = progress.verification.attempts;
+      if (previousAttempts >= VERIFY_RETRY_LIMIT) {
+        block("retry_exhausted", {
+          attempts: previousAttempts,
+          retry_limit: VERIFY_RETRY_LIMIT,
+        });
+        return;
+      }
+
       writeProgress(
         cwd,
-        verificationProgress(progress, config, "in_progress", {
+        verificationProgress(progress, "in_progress", {
           last_run: null,
           report_path: null,
         }),
       );
 
+      const verifyCfg = verifyConfig(config);
+      const results: VerifyResultEntry[] = [];
+
+      // Step 1: REQUIRED — full test profiles.
       const tests = runTestProfiles(cwd, config, {
         profileNames,
         coverage: options.coverage ?? false,
       });
+      results.push({
+        name: "tests",
+        ok: tests.ok,
+        class: tests.ok ? null : "implementation",
+        detail: tests,
+      });
+
+      // Step 2: REQUIRED — build (when project has a buildable marker).
       const buildCommand = tests.ok ? detectBuildCommand(cwd) : null;
       const build = buildCommand
         ? runShellCommand(cwd, buildCommand.working_dir, buildCommand.command)
         : null;
-      const passed = tests.ok && (build?.ok ?? true);
+      if (build) {
+        results.push({
+          name: "build",
+          ok: build.ok,
+          class: build.ok ? null : "implementation",
+          detail: build,
+        });
+      }
+
+      // Step 3: gstack basic tests (contract + smoke). Default enabled when
+      // gstack_installed config flag is true and verify.gstack_basic.enabled
+      // is true. If gstack is configured but missing on PATH, mark skipped
+      // with a clear reason instead of failing — gstack is recommended but
+      // not required.
+      if (isEnabled(verifyCfg, "gstack_basic", true) && config.gstack_installed) {
+        if (!isGstackInstalled()) {
+          results.push(skippedEntry("gstack-contract", "gstack not on PATH"));
+          results.push(skippedEntry("gstack-smoke", "gstack not on PATH"));
+        } else {
+          results.push(gstackResultEntry("gstack-contract", gstackContract(cwd)));
+          results.push(gstackResultEntry("gstack-smoke", gstackSmoke(cwd)));
+        }
+      } else {
+        results.push(
+          skippedEntry(
+            "gstack-basic",
+            isEnabled(verifyCfg, "gstack_basic", true)
+              ? "gstack_installed is false"
+              : "verify.gstack_basic disabled",
+          ),
+        );
+      }
+
+      // Step 4: security scan. Default enabled. Failure → security class.
+      // We scan git-tracked files; if not in a git repo, scan a small set of
+      // common source patterns under cwd. Empty list → no findings, ok:true.
+      if (isEnabled(verifyCfg, "security_scan", true)) {
+        const threshold =
+          (config.guards["security-scan"]?.severity_threshold ?? "HIGH") as Severity;
+        const files = listScanTargets(cwd);
+        const scan = scanFiles(files, { severityThreshold: threshold });
+        results.push({
+          name: "security_scan",
+          ok: scan.ok,
+          class: scan.ok ? null : "security",
+          detail: scan,
+        });
+      } else {
+        results.push(skippedEntry("security_scan", "verify.security_scan disabled"));
+      }
+
+      // Step 5: dependency audit. Default enabled. Failure → security class.
+      if (isEnabled(verifyCfg, "dependency_audit", true)) {
+        const allowlist =
+          config.guards["dependency-audit"]?.license_allowlist ?? [
+            "MIT",
+            "Apache-2.0",
+            "ISC",
+          ];
+        const audit = runDependencyAudit(cwd, [], allowlist);
+        results.push({
+          name: "dependency_audit",
+          ok: audit.ok,
+          class: audit.ok ? null : "security",
+          detail: audit,
+        });
+      } else {
+        results.push(skippedEntry("dependency_audit", "verify.dependency_audit disabled"));
+      }
+
+      // Step 6: gstack E2E / visual / performance — default disabled, opt-in.
+      // Each requires gstack installed. If enabled but gstack missing, mark
+      // skipped with reason rather than failing.
+      const optionalGstack: Array<[
+        keyof NonNullable<ForgeConfig["verify"]>,
+        string,
+        (cwd: string) => GstackResult,
+      ]> = [
+        ["e2e", "e2e", gstackE2E],
+        ["visual_regression", "visual_regression", gstackVisual],
+        ["performance", "performance", gstackPerformance],
+      ];
+      for (const [key, name, fn] of optionalGstack) {
+        if (!isEnabled(verifyCfg, key, false)) {
+          continue;
+        }
+        if (!isGstackInstalled()) {
+          results.push(skippedEntry(name, "gstack not on PATH"));
+          continue;
+        }
+        results.push(gstackResultEntry(name, fn(cwd)));
+      }
+
+      const passed = results.every((r) => r.ok);
       const status = passed ? "passed" : "failed";
       const lastRun = nowIso();
       const reportPath = `.forge/verification-${reportTimestamp(lastRun)}.json`;
+      const attempts = passed ? 0 : previousAttempts + 1;
+      const failureClass = aggregateFailureClass(results);
+
       const report: VerificationReport = {
         ok: passed,
         status,
         tests,
         build,
+        results,
+        failure_class: failureClass,
+        attempts,
         report_path: reportPath,
         duration_ms: Date.now() - startedAt,
       };
@@ -159,7 +363,8 @@ export function registerVerifyCommand(program: Command): void {
       );
       writeProgress(
         cwd,
-        verificationProgress(readProgress(cwd), config, status, {
+        verificationProgress(readProgress(cwd), status, {
+          attempts,
           last_run: lastRun,
           report_path: reportPath,
         }),

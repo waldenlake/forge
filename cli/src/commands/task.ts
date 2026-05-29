@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { triggeredGuards } from "../lib/guard.js";
 import { findTaskCommit, isGitRepo } from "../lib/git.js";
+import { gitNexusUpdate, isGitNexusInstalled } from "../lib/gitnexus.js";
 import { readConfig } from "../state/config.js";
 import {
   type ForgeProgress,
@@ -194,6 +195,29 @@ export function registerTaskCommand(program: Command): void {
         guards,
         guard_type: guards[0]?.type ?? null,
       });
+
+      // GitNexus incremental index after each task completion.
+      // Non-blocking: failure is recorded as a skipped guard entry for audit
+      // trail but does not fail the task:done command.
+      if (isGitNexusInstalled()) {
+        const gnResult = gitNexusUpdate(cwd);
+        if (!gnResult.ok) {
+          const current = readProgress(cwd);
+          writeProgress(cwd, {
+            ...current,
+            guard_history: [
+              ...current.guard_history,
+              {
+                id: `guard-${Date.now()}-gnx`,
+                type: "gitnexus-update",
+                triggered_at: nowIso(),
+                status: "skipped" as const,
+                notes: gnResult.stderr.slice(0, 200),
+              },
+            ],
+          });
+        }
+      }
     });
 
   program
@@ -265,6 +289,52 @@ export function registerTaskCommand(program: Command): void {
         ...item,
         status: "deferred",
         defer_reason: options.reason,
+      }));
+      const updatedTask = findTask(updatedProgress, id)!;
+
+      writeProgress(cwd, updatedProgress);
+      writeJson({ ok: true, task: updatedTask });
+    });
+
+  // task:reset — revert an in_progress (or pending) task back to pending,
+  // clearing started_at. Used by /bugfix to ensure tasks interrupted mid-flight
+  // get fully re-executed on /resume rather than leaving half-complete state.
+  program
+    .command("task:reset")
+    .requiredOption("--id <id>", "task id")
+    .requiredOption("--reason <text>", "reset reason")
+    .action((options: TaskReasonOptions) => {
+      const id = taskId(options);
+      if (id === null) {
+        fail(`invalid task id: ${options.id}`);
+        return;
+      }
+
+      const cwd = process.cwd();
+      const progress = readProgress(cwd);
+      if (rejectUnlessExecuting(progress)) {
+        return;
+      }
+
+      const task = findTask(progress, id);
+      if (!task) {
+        rejectUnknownTask(id);
+        return;
+      }
+
+      // Only in_progress or pending can be reset. Done/failed/deferred tasks
+      // should not be silently revived — use explicit task:start for that path.
+      if (task.status !== "in_progress" && task.status !== "pending") {
+        fail(`task ${id} is ${task.status}, expected in_progress or pending`);
+        return;
+      }
+
+      const updatedProgress = updateTask(progress, id, (item) => ({
+        ...item,
+        status: "pending",
+        started_at: undefined,
+        completed_at: undefined,
+        reset_reason: options.reason,
       }));
       const updatedTask = findTask(updatedProgress, id)!;
 

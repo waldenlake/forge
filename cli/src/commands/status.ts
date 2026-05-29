@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import type { Command } from "commander";
 import type { ForgeConfig } from "../state/config.js";
 import { configPath, readConfig } from "../state/config.js";
-import type { ForgeProgress } from "../state/progress.js";
+import type { ForgeProgress, ForgeTask } from "../state/progress.js";
 import { idleProgress, progressPath, readProgress } from "../state/progress.js";
 import { triggeredGuards } from "../lib/guard.js";
 
@@ -35,12 +35,22 @@ function buildGuardPreview(
     haystack.includes(kw.toLowerCase()),
   );
 
-  // Simulate next-task completion to get triggered guard types
+  // Simulate next-task completion: mark the task done in the tasks array AND
+  // bump completed_tasks. Both must be consistent for triggeredGuards to compute
+  // a correct task_range from completed task ids. (BUG-C02)
+  const simulatedTask: ForgeTask = {
+    ...nextTask,
+    status: "done",
+  };
+  const simulatedTasks = progress.tasks.map((t) =>
+    t.id === nextTask.id ? simulatedTask : t,
+  );
   const simulatedProgress: ForgeProgress = {
     ...progress,
     completed_tasks: progress.completed_tasks + 1,
+    tasks: simulatedTasks,
   };
-  const triggered = triggeredGuards(config, simulatedProgress, nextTask);
+  const triggered = triggeredGuards(config, simulatedProgress, simulatedTask);
   const nextGuardType =
     triggered.length > 0 ? triggered[0].type : "batch-review";
 
@@ -54,6 +64,10 @@ function buildGuardPreview(
   };
 }
 
+function deferredTaskCount(progress: ForgeProgress): number {
+  return progress.tasks.filter((t) => t.status === "deferred").length;
+}
+
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
 }
@@ -64,6 +78,35 @@ function readRawConfigVersion(cwd: string): string | null {
   };
 
   return typeof raw.version === "string" ? raw.version : null;
+}
+
+function readProgressLoose(cwd: string):
+  | { ok: true; progress: ForgeProgress }
+  | { ok: false; error: string; raw_status: string | null } {
+  if (!existsSync(progressPath(cwd))) {
+    return { ok: true, progress: idleProgress() };
+  }
+
+  // First read raw JSON to capture pre-validation status; this lets us tell
+  // the user what stale state they are sitting on (e.g. "verification_complete"
+  // from a pre-Phase-1 progress.json) without blowing up on schema validation.
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(progressPath(cwd), "utf8"));
+  } catch (e) {
+    return { ok: false, error: `progress.json parse error: ${(e as Error).message}`, raw_status: null };
+  }
+
+  const rawStatus =
+    raw && typeof raw === "object" && typeof (raw as { status?: unknown }).status === "string"
+      ? ((raw as { status: string }).status)
+      : null;
+
+  try {
+    return { ok: true, progress: readProgress(cwd) };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message, raw_status: rawStatus };
+  }
 }
 
 function currentStatus(cwd: string): ReturnType<typeof idleProgress> {
@@ -109,8 +152,26 @@ export function registerStatusCommand(program: Command): void {
       return;
     }
 
-    const progress = currentStatus(cwd);
+    const progressResult = readProgressLoose(cwd);
     const config = readConfig(cwd);
+    if (!progressResult.ok) {
+      // Stale progress.json from a previous forge version (typically containing
+      // status "verification_complete" or "bugfix"). Surface it explicitly
+      // instead of crashing so the user can recover via `forge reset --backup`.
+      writeJson({
+        ok: false,
+        migration_required: false,
+        config: { version: config.version },
+        status: progressResult.raw_status,
+        stale_progress: true,
+        error: progressResult.error,
+        recovery: "forge reset --backup",
+      });
+      process.exitCode = 1;
+      return;
+    }
+
+    const progress = progressResult.progress;
     const guard =
       progress.status === "executing"
         ? buildGuardPreview(config, progress)
@@ -127,8 +188,11 @@ export function registerStatusCommand(program: Command): void {
       status: progress.status,
       progress: {
         feature: progress.feature,
+        spec_path: progress.spec_path,
+        plan_path: progress.plan_path,
         total_tasks: progress.total_tasks,
         completed_tasks: progress.completed_tasks,
+        deferred_tasks: deferredTaskCount(progress),
         verification: progress.verification,
       },
       ...(guard !== undefined ? { guard } : {}),

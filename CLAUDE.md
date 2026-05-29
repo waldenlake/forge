@@ -32,7 +32,7 @@ The built binary is `cli/dist/index.js`. Tests use `spawnSync` against this bina
 Two runtime state files live in the user's `.forge/` directory:
 
 - **`config.ts`** — reads/writes/validates `.forge/config.json` (`ForgeConfig` type). Contains test profiles, guard rules, and feature flags. Schema-validated via AJV on every read.
-- **`progress.ts`** — reads/writes/validates `.forge/progress.json` (`ForgeProgress` type). Tracks feature lifecycle: `idle → planning → executing → verification_complete`. Contains tasks, guard history, and verification state.
+- **`progress.ts`** — reads/writes/validates `.forge/progress.json` (`ForgeProgress` type). Tracks feature lifecycle: `idle → planning → executing → execution_complete → verified`. Contains tasks, guard history, and verification state.
 - **`memory.ts`** — reads/writes the memory file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md`) referenced in config.
 
 ### Command Layer (`cli/src/commands/`)

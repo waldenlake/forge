@@ -10,7 +10,6 @@ const CONFIG = {
   version: "2.0",
   forge_cli_version: "0.2.0",
   memory_file: "AGENTS.md",
-  test_mode: "normal",
   project_type: "existing",
   test_profiles: {
     default: {
@@ -45,6 +44,7 @@ const PROGRESS_EXECUTING = {
   plan_path: "plan.md",
   total_tasks: 6,
   completed_tasks: 2,
+  phase_complete_attempts: 0,
   tasks: [
     { id: 1, title: "Setup project", status: "done" },
     { id: 2, title: "Add database", status: "done" },
@@ -54,7 +54,7 @@ const PROGRESS_EXECUTING = {
     { id: 6, title: "Final review", status: "pending" },
   ],
   guard_history: [],
-  verification: { status: "pending", test_mode: "normal", last_run: null, report_path: null },
+  verification: { status: "pending", attempts: 0, last_run: null, report_path: null },
 };
 
 const PROGRESS_IDLE = {
@@ -67,9 +67,10 @@ const PROGRESS_IDLE = {
   plan_path: null,
   total_tasks: 0,
   completed_tasks: 0,
+  phase_complete_attempts: 0,
   tasks: [],
   guard_history: [],
-  verification: { status: "pending", test_mode: "normal", last_run: null, report_path: null },
+  verification: { status: "pending", attempts: 0, last_run: null, report_path: null },
 };
 
 function runStatus(cwd: string): Record<string, unknown> {
@@ -110,6 +111,16 @@ describe("forge status guard preview", () => {
     expect(guard.next_guard_type).toBeDefined();
     expect(typeof guard.tasks_until_guard).toBe("number");
     expect(guard.tasks_until_guard as number).toBeGreaterThanOrEqual(0);
+  });
+
+  it("progress includes spec_path, plan_path, and deferred_tasks", () => {
+    setupForge(tmpDir, PROGRESS_EXECUTING);
+    const output = runStatus(tmpDir);
+
+    const progress = output.progress as Record<string, unknown>;
+    expect(progress.spec_path).toBe("spec.md");
+    expect(progress.plan_path).toBe("plan.md");
+    expect(progress.deferred_tasks).toBe(0);
   });
 
   it("guard.preview.security_scan_will_trigger is true for 'Add token refresh'", () => {

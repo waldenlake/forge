@@ -97,21 +97,30 @@ export function commitAll(
 }
 
 export function findTaskCommit(cwd: string, taskId: number): TaskCommit | null {
-  const result = git(cwd, ["log", "--format=%H%x1f%cI%x1f%s"]);
+  // BUG-C06: Use --grep + --fixed-strings to scan only matching commits
+  // instead of walking the entire log. -n 1 stops at the most recent match.
+  const tag = `[forge task-${taskId}]`;
+  const result = git(cwd, [
+    "log",
+    "--all",
+    `--grep=${tag}`,
+    "--fixed-strings",
+    "-n",
+    "1",
+    "--format=%H%x1f%cI%x1f%s",
+  ]);
   if (!result.ok) {
     return null;
   }
 
-  const tag = `[forge task-${taskId}]`;
-  for (const line of result.stdout.split("\n")) {
-    if (!line.includes(tag)) {
-      continue;
-    }
+  const line = result.stdout.split("\n").find((l) => l.length > 0);
+  if (!line) {
+    return null;
+  }
 
-    const [hash, at, message] = line.split("\x1f");
-    if (hash && at && message) {
-      return { hash, at, message };
-    }
+  const [hash, at, message] = line.split("\x1f");
+  if (hash && at && message && message.includes(tag)) {
+    return { hash, at, message };
   }
 
   return null;

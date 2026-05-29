@@ -140,16 +140,28 @@ describe("task and guard runtime commands", () => {
       "idle",
       ["task:defer", "--id", "1", "--reason", "blocked externally"],
     ],
-    ["task:start", "verification_complete", ["task:start", "--id", "1"]],
-    ["task:done", "verification_complete", ["task:done", "--id", "1"]],
+    ["task:start", "execution_complete", ["task:start", "--id", "1"]],
+    ["task:done", "execution_complete", ["task:done", "--id", "1"]],
     [
       "task:fail",
-      "verification_complete",
+      "execution_complete",
       ["task:fail", "--id", "1", "--reason", "tests failed"],
     ],
     [
       "task:defer",
-      "verification_complete",
+      "execution_complete",
+      ["task:defer", "--id", "1", "--reason", "blocked externally"],
+    ],
+    ["task:start", "verified", ["task:start", "--id", "1"]],
+    ["task:done", "verified", ["task:done", "--id", "1"]],
+    [
+      "task:fail",
+      "verified",
+      ["task:fail", "--id", "1", "--reason", "tests failed"],
+    ],
+    [
+      "task:defer",
+      "verified",
       ["task:defer", "--id", "1", "--reason", "blocked externally"],
     ],
   ] as const)(
@@ -620,7 +632,7 @@ describe("task and guard runtime commands", () => {
     },
   );
 
-  test("guard:record appends guard-1 with task_range from tasks", () => {
+  test("guard:record appends guard with task_range from tasks", () => {
     withTempProject((cwd) => {
       writeProgress(cwd, executingProgress());
 
@@ -635,15 +647,19 @@ describe("task and guard runtime commands", () => {
       ]);
 
       expect(result.status).toBe(0);
-      expect(parseStdout(result)).toMatchObject({
+      const payload = parseStdout(result);
+      expect(payload).toMatchObject({
         ok: true,
         guard: {
-          id: "guard-1",
           type: "batch-review",
           task_range: [1, 6],
           status: "passed",
         },
       });
+      // BUG-C07: id is unique-per-call (timestamp + random suffix), not derived
+      // from history length, so concurrent or replayed records cannot collide.
+      expect(typeof payload.guard.id).toBe("string");
+      expect(payload.guard.id).toMatch(/^guard-\d+-[a-z0-9]+$/);
       expect(readProgress(cwd).guard_history).toHaveLength(1);
     });
   });

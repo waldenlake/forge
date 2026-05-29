@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { Command } from "commander";
-import { git } from "../lib/git.js";
+import { git, isGitRepo } from "../lib/git.js";
 import { triggeredGuards } from "../lib/guard.js";
 import { checkCoverage } from "../lib/scanners/coverage.js";
 import { extractNewPackagesFromDiff, runDependencyAudit } from "../lib/scanners/dependency.js";
@@ -30,6 +30,13 @@ type GuardPreviewOptions = {
 type GuardRunOptions = {
   type: string;
   taskId: string;
+};
+
+type ExecutedAction = {
+  action: string;
+  ok: boolean;
+  result?: unknown;
+  error?: string;
 };
 
 function writeJson(payload: unknown): void {
@@ -86,6 +93,48 @@ function previewProgress(progress: ForgeProgress, task: ForgeTask): ForgeProgres
   };
 }
 
+/**
+ * Resolves changed files using `git diff HEAD~1`. Returns `{ ok: false, error }`
+ * when the repo has fewer than 2 commits or git is unavailable, instead of
+ * silently returning an empty list (BUG-C04). Callers should treat this as a
+ * scanner failure rather than a clean scan.
+ */
+function changedFilesSinceParent(
+  cwd: string,
+  pathSpec?: string,
+): { ok: true; files: string[] } | { ok: false; error: string } {
+  if (!isGitRepo(cwd)) {
+    return { ok: false, error: "not a git repository" };
+  }
+
+  // Confirm HEAD~1 resolves before running diff so the error message is
+  // explicit instead of "fatal: ambiguous argument 'HEAD~1'".
+  const parent = git(cwd, ["rev-parse", "--verify", "HEAD~1"]);
+  if (!parent.ok) {
+    return {
+      ok: false,
+      error:
+        "HEAD~1 not found — repository has fewer than 2 commits, cannot diff against previous commit",
+    };
+  }
+
+  const args = pathSpec
+    ? ["diff", "--name-only", "HEAD~1", "--", pathSpec]
+    : ["diff", "--name-only", "HEAD~1"];
+  const diff = git(cwd, args);
+  if (!diff.ok) {
+    return {
+      ok: false,
+      error: diff.stderr.trim() || "git diff HEAD~1 failed",
+    };
+  }
+
+  const files = diff.stdout
+    .split("\n")
+    .filter((f) => f.length > 0);
+  return { ok: true, files };
+}
+
 export function registerGuardCommand(program: Command): void {
   program
     .command("guard:preview")
@@ -134,27 +183,87 @@ export function registerGuardCommand(program: Command): void {
       const config = readConfig(cwd);
       const type = options.type;
 
+      // BUG-S04: All guard types now return a unified shape:
+      //   { ok, type, executed: ExecutedAction[], delegated_actions: string[], ... }
+      // Inline scanners populate `executed` with their result; AI-driven
+      // delegated guards populate `delegated_actions` for the skill layer.
+
       if (type === "security-scan") {
         const guardConfig = config.guards["security-scan"];
         const threshold = (guardConfig?.severity_threshold ?? "HIGH") as Severity;
-        const gitResult = git(cwd, ["diff", "--name-only", "HEAD~1"]);
-        const files = gitResult.ok
-          ? gitResult.stdout.split("\n").filter((f) => f.length > 0).map((f) => join(cwd, f))
-          : [];
+        const filesResult = changedFilesSinceParent(cwd);
+
+        if (!filesResult.ok) {
+          process.exitCode = 1;
+          const executed: ExecutedAction[] = [
+            { action: "security-audit", ok: false, error: filesResult.error },
+          ];
+          writeJson({
+            ok: false,
+            type,
+            executed,
+            delegated_actions: [],
+            error: filesResult.error,
+          });
+          return;
+        }
+
+        const files = filesResult.files.map((f) => join(cwd, f));
         const result = scanFiles(files, { severityThreshold: threshold });
         if (!result.ok) process.exitCode = 1;
-        writeJson(result);
+        const executed: ExecutedAction[] = [
+          { action: "security-audit", ok: result.ok, result },
+        ];
+        writeJson({
+          ok: result.ok,
+          type,
+          executed,
+          delegated_actions: [],
+          findings: result.findings,
+          scanned_files: result.scanned_files,
+          scanner: result.scanner,
+        });
         return;
       }
 
       if (type === "dependency-audit") {
         const guardConfig = config.guards["dependency-audit"];
         const allowlist = guardConfig?.license_allowlist ?? ["MIT", "Apache-2.0", "ISC"];
+        const filesResult = changedFilesSinceParent(cwd, "package.json");
+
+        if (!filesResult.ok) {
+          process.exitCode = 1;
+          const executed: ExecutedAction[] = [
+            { action: "dependency-check", ok: false, error: filesResult.error },
+          ];
+          writeJson({
+            ok: false,
+            type,
+            executed,
+            delegated_actions: [],
+            error: filesResult.error,
+          });
+          return;
+        }
+
+        // Re-run diff with content (the file-only result above told us whether
+        // package.json changed — extract package names from the full diff).
         const diffResult = git(cwd, ["diff", "HEAD~1", "--", "package.json"]);
         const newPkgs = diffResult.ok ? extractNewPackagesFromDiff(diffResult.stdout) : [];
         const result = runDependencyAudit(cwd, newPkgs, allowlist);
         if (!result.ok) process.exitCode = 1;
-        writeJson(result);
+        const executed: ExecutedAction[] = [
+          { action: "dependency-check", ok: result.ok, result },
+        ];
+        writeJson({
+          ok: result.ok,
+          type,
+          executed,
+          delegated_actions: [],
+          packages: result.packages,
+          new_packages_detected: result.new_packages_detected,
+          scanner: result.scanner,
+        });
         return;
       }
 
@@ -163,13 +272,26 @@ export function registerGuardCommand(program: Command): void {
         const integrationTarget = config.test_coverage?.integration ?? 60;
         const result = checkCoverage(cwd, { unit: unitTarget, integration: integrationTarget });
         if (!result.ok) process.exitCode = 1;
-        writeJson(result);
+        const executed: ExecutedAction[] = [
+          { action: "coverage-check", ok: result.ok, result },
+        ];
+        writeJson({
+          ok: result.ok,
+          type,
+          executed,
+          delegated_actions: [],
+          coverage: result.coverage,
+          report_path: result.report_path,
+          format: result.format,
+          ...(result.error ? { error: result.error } : {}),
+        });
         return;
       }
 
-      // Delegated types: batch-review, human-review, etc. All configured
-      // actions are returned as delegated_actions for the skill layer to
-      // dispatch (e.g. spec-compliance-review, gstack-e2e via gstack skill).
+      // Delegated types: batch-review, human-review, performance-budget, etc.
+      // All configured actions are returned as delegated_actions for the skill
+      // layer to dispatch (e.g. spec-compliance-review via Superpowers,
+      // gstack-* via the gstack skill).
       const guardConfig = config.guards[type];
       const actions = guardConfig?.actions ?? [];
       writeJson({
@@ -256,8 +378,10 @@ export function registerGuardCommand(program: Command): void {
       }
 
       const taskRange: [number, number] = [Math.min(...tasks), Math.max(...tasks)];
+      // BUG-C07: timestamped + random suffix prevents id collisions when
+      // history is cleared / reset / replayed.
       const guard = {
-        id: `guard-${progress.guard_history.length + 1}`,
+        id: `guard-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         type: options.type,
         triggered_at: nowIso(),
         task_range: taskRange,

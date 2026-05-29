@@ -11,7 +11,7 @@ import {
 
 type CommitOptions = {
   message: string;
-  tag: string;
+  tag?: string;
 };
 
 type CommitCheckOptions = {
@@ -40,7 +40,10 @@ function parseTaskIds(value: string): number[] | null {
   return ids;
 }
 
-function taggedMessage(message: string, tag: string): string {
+function taggedMessage(message: string, tag: string | undefined): string {
+  if (!tag) {
+    return message;
+  }
   const suffix = `[${tag}]`;
 
   return message.includes(suffix) ? message : `${message} ${suffix}`;
@@ -99,7 +102,7 @@ export function registerCommitCommand(program: Command): void {
   program
     .command("commit")
     .requiredOption("--message <message>", "commit message")
-    .requiredOption("--tag <tag>", "forge task tag")
+    .option("--tag <tag>", "forge task tag")
     .action((options: CommitOptions) => {
       const cwd = process.cwd();
       if (!requireCommitRoot(cwd)) {

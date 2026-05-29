@@ -23,27 +23,58 @@ type FeatureStartOptions = {
 const WORKFLOW_RULES_BLOCK = `**Workflow Rules**
 MANDATORY — applies until this feature is complete.
 
-FOR EVERY TASK follow this exact sequence, no exceptions:
+CURRENT PHASE drives next command:
+  planning            → /planning
+  executing           → /executing
+  execution_complete  → /verify
+  verified            → /done
+
+PER-TASK in /executing follow this exact sequence:
   1. $FORGE_CMD task:start --id <id>
   2. Output exactly: "→ Subagent: task <id> — <title>"
-     Then use the superpowers:subagent-driven-development skill (platform Skill tool).
-     The skill REQUIRES three sub-stages in order — execute ALL of them before step 3:
-       a) Implementer subagent — dispatches and implements the task
-       b) Spec Compliance Reviewer subagent — verifies code matches the spec
-       c) Code Quality Reviewer subagent — verifies the code is well-built
+     Then use the superpowers:subagent-driven-development skill.
+     Three sub-stages REQUIRED in order — execute ALL of them before step 3:
+       a) Implementer subagent — TDD + commit with [forge task-<id>] tag
+       b) Spec Compliance Reviewer subagent
+       c) Code Quality Reviewer subagent
      Only after all three pass may you proceed to step 3.
      If the skill is unavailable: output "Subagent unavailable — halting." and STOP.
   3. $FORGE_CMD task:done --id <id>
-  4. Handle guards if triggered, then continue to next task immediately.
+     (CLI auto-runs gitnexus index --update; failure recorded to guard_history)
+  4. Handle guards if triggered (forge guard:run / guard:record), then continue.
+
+IMPLEMENTER SUBAGENT TDD DISCIPLINE (strict RED → GREEN → REFACTOR):
+  The implementer subagent MUST follow this exact order. No exceptions.
+  ① RED: Write failing tests FIRST.
+     - Read the task's associated scenario IDs from the plan.
+     - Read matching scenarios from .forge/scenarios.json.
+     - Write test cases that encode each scenario's Given/When/Then assertions.
+     - Run tests — they MUST FAIL. If they pass, the feature already exists.
+     - Do NOT write any implementation code until tests exist and fail.
+  ② GREEN: Write minimal implementation to make tests pass.
+     - Only code necessary to satisfy the failing tests. YAGNI.
+     - Run tests — they MUST ALL PASS before proceeding.
+  ③ REFACTOR: Clean up code while keeping tests green.
+     - Extract duplication, improve naming, simplify logic.
+     - Run tests again — confirm still green.
+  THEN commit: $FORGE_CMD commit --message "feat: <title>" --tag "forge task-<id>"
+
+  VIOLATIONS (any of these means the TDD discipline was broken):
+  - Writing implementation code before tests exist.
+  - Writing tests that test implementation details instead of scenario behavior.
+  - Skipping the RED phase because "the task is simple."
+  - Modifying tests to make them pass instead of fixing implementation.
 
 YOU ARE VIOLATING THESE RULES if you:
-  - Write, edit, or generate any implementation code yourself (step 2 not done)
-  - Run tests or commits yourself
-  - Call task:done before all three sub-stages of step 2 complete
-  - Skip any of the three sub-stages for any reason including "it's a simple task"
+  - Implement, edit, test, or commit code yourself (the subagent owns it).
+  - Skip any of the three sub-stages, including for "simple" tasks.
+  - Call task:done before all three sub-stages complete.
+  - Edit .forge/*.json directly (CLI is the only writer).
+  - Advance phase without the required CLI command.
 
 LOOP: repeat steps 1–4 for every pending task without pausing between tasks.
-STOP only when: forge returns ok:false, guard fails, human-review fires, or all tasks complete.
+STOP only when: forge returns ok:false, guard fails, holistic review
+exhausts retries, holistic review STOPs for human, or all phases complete.
 When forge CLI returns ok:false: report the error exactly and stop immediately.`;
 
 function writeJson(payload: unknown): void {

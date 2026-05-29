@@ -1,5 +1,5 @@
 ---
-name: session-handoff
+name: forge:session-handoff
 description: Prepare cross-session recovery (used by Guard `session-handoff-suggestion` action)
 ---
 

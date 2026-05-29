@@ -18,8 +18,9 @@ import { registerTaskCommand } from "./commands/task.js";
 import { registerTestCommand } from "./commands/test.js";
 import { registerVerifyCommand } from "./commands/verify.js";
 import { initLogger, getLogger } from "./lib/logger.js";
+import { FORGE_CLI_VERSION } from "./lib/version.js";
 
-const VERSION = "0.2.0";
+const VERSION = FORGE_CLI_VERSION;
 
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);

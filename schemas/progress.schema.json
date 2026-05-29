@@ -15,14 +15,15 @@
     "completed_tasks",
     "tasks",
     "guard_history",
-    "verification"
+    "verification",
+    "phase_complete_attempts"
   ],
   "properties": {
     "version": { "type": "string", "const": "1.0" },
     "feature": { "type": ["string", "null"] },
     "status": {
       "type": "string",
-      "enum": ["idle", "planning", "executing", "verification_complete", "bugfix"]
+      "enum": ["idle", "planning", "executing", "execution_complete", "verified"]
     },
     "created_at": { "type": ["string", "null"], "format": "date-time" },
     "updated_at": { "type": "string", "format": "date-time" },
@@ -30,6 +31,7 @@
     "plan_path": { "type": ["string", "null"] },
     "total_tasks": { "type": "integer", "minimum": 0 },
     "completed_tasks": { "type": "integer", "minimum": 0 },
+    "phase_complete_attempts": { "type": "integer", "minimum": 0 },
     "tasks": {
       "type": "array",
       "items": {
@@ -52,7 +54,8 @@
           },
           "requires_human_review": { "type": "boolean" },
           "failure_reason": { "type": "string" },
-          "defer_reason": { "type": "string" }
+          "defer_reason": { "type": "string" },
+          "reset_reason": { "type": "string" }
         }
       }
     },
@@ -63,7 +66,7 @@
         "additionalProperties": false,
         "required": ["id", "type", "triggered_at", "status"],
         "properties": {
-          "id": { "type": "string", "pattern": "^guard-\\d+$" },
+          "id": { "type": "string", "pattern": "^guard-" },
           "type": { "type": "string" },
           "triggered_at": { "type": "string", "format": "date-time" },
           "task_range": {
@@ -83,13 +86,13 @@
     "verification": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "test_mode", "last_run", "report_path"],
+      "required": ["status", "last_run", "report_path", "attempts"],
       "properties": {
         "status": {
           "type": "string",
           "enum": ["pending", "in_progress", "passed", "failed"]
         },
-        "test_mode": { "type": "string", "enum": ["normal", "enhanced"] },
+        "attempts": { "type": "integer", "minimum": 0 },
         "last_run": { "type": ["string", "null"], "format": "date-time" },
         "report_path": { "type": ["string", "null"] }
       }

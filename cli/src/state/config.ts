@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateJsonFile } from "../lib/schema.js";
+import { FORGE_CLI_VERSION } from "../lib/version.js";
 
 export type MemoryFile = "CLAUDE.md" | "AGENTS.md" | "GEMINI.md";
 export type ProjectType = "new" | "existing";
@@ -13,11 +14,19 @@ export type TestProfile = {
   coverage_command?: string;
 };
 
+export type VerifyConfig = {
+  gstack_basic?: { enabled: boolean };
+  security_scan?: { enabled: boolean };
+  dependency_audit?: { enabled: boolean };
+  e2e?: { enabled: boolean };
+  visual_regression?: { enabled: boolean };
+  performance?: { enabled: boolean };
+};
+
 export type ForgeConfig = {
   version: "2.0";
   forge_cli_version: string;
   memory_file: MemoryFile;
-  test_mode: "normal" | "enhanced";
   gstack_installed?: boolean;
   test_coverage?: {
     unit?: number;
@@ -39,15 +48,16 @@ export type ForgeConfig = {
       actions: string[];
     }
   >;
+  verify?: VerifyConfig;
 };
 
 type DefaultConfigInput = Partial<
-  Omit<ForgeConfig, "version" | "forge_cli_version" | "guards">
+  Omit<ForgeConfig, "version" | "forge_cli_version" | "guards" | "verify">
 > & {
   guards?: ForgeConfig["guards"];
+  verify?: VerifyConfig;
 };
 
-const FORGE_CLI_VERSION = "0.2.0";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function configSchemaPath(cwd: string): string {
@@ -69,7 +79,6 @@ export function defaultConfig(input: DefaultConfigInput = {}): ForgeConfig {
     version: "2.0",
     forge_cli_version: FORGE_CLI_VERSION,
     memory_file: input.memory_file ?? "AGENTS.md",
-    test_mode: input.test_mode ?? "normal",
     gstack_installed: input.gstack_installed,
     test_coverage: input.test_coverage,
     project_type: input.project_type ?? "existing",
@@ -133,6 +142,14 @@ export function defaultConfig(input: DefaultConfigInput = {}): ForgeConfig {
         trigger: "manual",
         actions: ["pause-for-human"],
       },
+    },
+    verify: input.verify ?? {
+      gstack_basic: { enabled: true },
+      security_scan: { enabled: true },
+      dependency_audit: { enabled: true },
+      e2e: { enabled: false },
+      visual_regression: { enabled: false },
+      performance: { enabled: false },
     },
   };
 }

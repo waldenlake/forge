@@ -1,12 +1,12 @@
 ---
-name: progress-tracking
+name: forge:progress-tracking
 description: Compatibility shim — delegates all work to /next
 ---
 
 # Progress Tracking
 
-This skill is a compatibility helper for older Forge skill flows. Invoke `/next`
-instead — it handles the full task execution loop including guard evaluation.
+This skill is a compatibility helper for older Forge skill flows. It immediately
+invokes `/next` — no additional logic, no separate output.
 
 ## Forge CLI
 
@@ -19,7 +19,7 @@ FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/pl
 All Runtime commands output JSON by default. Read the JSON, report blocking
 errors exactly, and do not edit `.forge/*.json` directly.
 
-## Delegation
+## Behavior
 
-Use the `/next` skill to execute tasks and handle guards. This skill adds no
-additional logic.
+When invoked, immediately invoke the `/next` skill. Do not output any header
+or status of your own — `/next` handles all output and state management.

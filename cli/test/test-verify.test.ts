@@ -106,7 +106,20 @@ function writeConfig(cwd: string, config: ForgeConfig): void {
 function configWithProfiles(
   profiles: ForgeConfig["test_profiles"],
 ): ForgeConfig {
-  return defaultConfig({ test_profiles: profiles });
+  return defaultConfig({
+    test_profiles: profiles,
+    // Disable the extra Phase 5 verify steps for tests that only want to
+    // exercise the core test+build flow. Security/dependency/gstack steps
+    // have their own dedicated tests in phase2-gates and phase5-verify.
+    verify: {
+      gstack_basic: { enabled: false },
+      security_scan: { enabled: false },
+      dependency_audit: { enabled: false },
+      e2e: { enabled: false },
+      visual_regression: { enabled: false },
+      performance: { enabled: false },
+    },
+  });
 }
 
 function executingProgress(
@@ -125,6 +138,20 @@ function executingProgress(
     tasks: [{ id: 1, title: "Implement verifier", status: "in_progress" }],
     ...overrides,
   };
+}
+
+// /verify entry gate requires execution_complete. This factory builds the
+// minimal progress shape representing "executing finished, ready to verify"
+// so tests don't have to enumerate fields per call.
+function executionCompleteProgress(
+  overrides: Partial<ForgeProgress> = {},
+): ForgeProgress {
+  return executingProgress({
+    status: "execution_complete",
+    completed_tasks: 1,
+    tasks: [{ id: 1, title: "Implement verifier", status: "done" }],
+    ...overrides,
+  });
 }
 
 function verificationReports(cwd: string): string[] {
@@ -317,7 +344,7 @@ describe("test and verification commands", () => {
           },
         }),
       );
-      writeProgress(cwd, executingProgress());
+      writeProgress(cwd, executionCompleteProgress());
       writeFileSync(
         join(cwd, "package.json"),
         `${JSON.stringify({
@@ -372,7 +399,7 @@ describe("test and verification commands", () => {
           },
         }),
       );
-      writeProgress(cwd, executingProgress());
+      writeProgress(cwd, executionCompleteProgress());
 
       const result = runForge(cwd, ["verify"]);
 
@@ -405,7 +432,7 @@ describe("test and verification commands", () => {
           },
         }),
       );
-      writeProgress(cwd, executingProgress());
+      writeProgress(cwd, executionCompleteProgress());
       writeFileSync(join(cwd, "go.mod"), "module example.com/forge\n", "utf8");
       const binDir = writeFakeTool(cwd, "go");
 
@@ -436,7 +463,7 @@ describe("test and verification commands", () => {
           },
         }),
       );
-      writeProgress(cwd, executingProgress());
+      writeProgress(cwd, executionCompleteProgress());
       writeFileSync(
         join(cwd, "Cargo.toml"),
         "[package]\nname = \"forge-fixture\"\nversion = \"0.1.0\"\n",
@@ -476,7 +503,7 @@ describe("test and verification commands", () => {
           },
         }),
       );
-      writeProgress(cwd, executingProgress());
+      writeProgress(cwd, executionCompleteProgress());
 
       const result = runForge(cwd, ["verify"]);
       const output = parseStdout(result);
@@ -509,7 +536,7 @@ describe("test and verification commands", () => {
           },
         }),
       );
-      writeProgress(cwd, executingProgress());
+      writeProgress(cwd, executionCompleteProgress());
 
       const result = runForge(cwd, ["verify"]);
 

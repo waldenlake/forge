@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import { detectOptionalTool } from "../lib/detect.js";
+import { isGitNexusInstalled } from "../lib/gitnexus.js";
 import { configPath, readConfig } from "../state/config.js";
 import { progressPath, readProgress } from "../state/progress.js";
 
@@ -65,6 +66,11 @@ export function registerDoctorCommand(program: Command): void {
         existsSync(join(cwd, ".git")) || detectOptionalTool("git")
           ? null
           : "git not found",
+      ),
+      check("gitnexus", true, () =>
+        isGitNexusInstalled()
+          ? null
+          : "gitnexus not installed — install with: npm install -g gitnexus",
       ),
     ];
 

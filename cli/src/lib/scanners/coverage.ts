@@ -17,6 +17,7 @@ export type CoverageCheckResult = {
   };
   report_path: string | null;
   format: 'istanbul' | 'lcov' | 'unknown';
+  error?: string;
 };
 
 export type IstanbulMetrics = {
@@ -90,13 +91,18 @@ export function checkCoverage(
     };
   }
 
-  // lcov.info detected but not parsed in this round
+  // lcov.info detected but not parsed in this round.
+  // BUG-C01: Skill layer needs a structured `error` so the user sees why the
+  // gate failed instead of a silent ok:false. Long-term we should parse `LF:`
+  // counters per file, but until then we surface an explicit reason.
   if (resolvedPath.endsWith('lcov.info')) {
     return {
       ok: false,
       coverage: {},
       report_path: resolvedPath,
       format: 'lcov',
+      error:
+        'lcov format not yet supported by coverage gate. Configure your test runner to emit Istanbul JSON (coverage-summary.json or coverage-final.json), or install @istanbuljs/nyc-config-typescript to convert lcov to Istanbul JSON.',
     };
   }
 

@@ -7,7 +7,6 @@
     "version",
     "forge_cli_version",
     "memory_file",
-    "test_mode",
     "project_type",
     "test_profiles",
     "guards"
@@ -18,10 +17,6 @@
     "memory_file": {
       "type": "string",
       "enum": ["CLAUDE.md", "AGENTS.md", "GEMINI.md"]
-    },
-    "test_mode": {
-      "type": "string",
-      "enum": ["normal", "enhanced"]
     },
     "gstack_installed": { "type": "boolean" },
     "test_coverage": {
@@ -82,6 +77,42 @@
             "type": "array",
             "items": { "type": "string" }
           }
+        }
+      }
+    },
+    "verify": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gstack_basic": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean" } }
+        },
+        "security_scan": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean" } }
+        },
+        "dependency_audit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean" } }
+        },
+        "e2e": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean" } }
+        },
+        "visual_regression": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean" } }
+        },
+        "performance": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean" } }
         }
       }
     }

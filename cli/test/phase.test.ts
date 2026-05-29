@@ -79,6 +79,7 @@ function executingProgress(
     plan_path: "docs/plan.md",
     total_tasks: 2,
     completed_tasks: 0,
+    phase_complete_attempts: 0,
     tasks: [
       { id: 1, title: "Build parser", status: "pending" },
       { id: 2, title: "Wire command", status: "done" },
@@ -148,11 +149,12 @@ describe("phase transition commands", () => {
         plan_path: null,
         total_tasks: 0,
         completed_tasks: 0,
+        phase_complete_attempts: 0,
         tasks: [],
         guard_history: [],
         verification: {
           status: "pending",
-          test_mode: "normal",
+          attempts: 0,
           last_run: null,
           report_path: null,
         },
@@ -179,7 +181,7 @@ describe("phase transition commands", () => {
         ],
         verification: {
           status: "in_progress",
-          test_mode: "enhanced",
+          attempts: 0,
           last_run: "2026-05-26T00:00:00.000Z",
           report_path: "reports/current.json",
         },
@@ -241,6 +243,7 @@ describe("phase transition commands", () => {
         plan_path: "docs/plan.md",
         total_tasks: 2,
         completed_tasks: 0,
+        phase_complete_attempts: 0,
         tasks: [
           { id: 1, title: "Add feature command", status: "pending" },
           { id: 2, title: "Add phase command", status: "pending" },
@@ -282,6 +285,7 @@ describe("phase transition commands", () => {
         plan_path: "docs/original-plan.md",
         total_tasks: 1,
         completed_tasks: 0,
+        phase_complete_attempts: 0,
         tasks: [{ id: 1, title: "Keep existing task", status: "pending" }],
       });
       writeProgress(cwd, originalProgress);
@@ -381,7 +385,7 @@ describe("phase transition commands", () => {
         spec_path: "docs/spec.md",
         verification: {
           status: "pending",
-          test_mode: "normal",
+          attempts: 0,
           last_run: null,
           report_path: null,
         },
@@ -422,12 +426,13 @@ describe("phase transition commands", () => {
     });
   });
 
-  test("phase:complete moves executing progress with finished tasks to verification_complete", () => {
+  test("phase:complete moves executing progress with finished tasks to execution_complete", () => {
     withTempProject((cwd) => {
       writeProgress(
         cwd,
         executingProgress({
           completed_tasks: 2,
+          phase_complete_attempts: 0,
           tasks: [
             { id: 1, title: "Build parser", status: "done" },
             { id: 2, title: "Wire command", status: "deferred" },
@@ -441,13 +446,13 @@ describe("phase transition commands", () => {
       expect(parseStdout(result)).toMatchObject({
         ok: true,
         from: "executing",
-        to: "verification_complete",
+        to: "execution_complete",
       });
       expect(readProgress(cwd)).toMatchObject({
-        status: "verification_complete",
+        status: "execution_complete",
         verification: {
           status: "pending",
-          test_mode: "normal",
+          attempts: 0,
           last_run: null,
           report_path: null,
         },
@@ -455,12 +460,98 @@ describe("phase transition commands", () => {
     });
   });
 
-  test("phase:finish blocks passed verification outside verification_complete without modifying progress", () => {
+  test("phase:verify-pass blocks status outside execution_complete", () => {
     withTempProject((cwd) => {
       const originalProgress = executingProgress({
         verification: {
           status: "passed",
-          test_mode: "normal",
+          attempts: 0,
+          last_run: "2026-05-26T00:00:00.000Z",
+          report_path: "reports/verification.json",
+        },
+      });
+      writeProgress(cwd, originalProgress);
+
+      const result = runForge(cwd, ["phase:verify-pass"]);
+
+      expect(result.status).toBe(1);
+      expect(parseStdout(result)).toEqual({
+        ok: false,
+        from: "executing",
+        blocked_by: "status is not execution_complete",
+      });
+      expect(readProgress(cwd)).toEqual(originalProgress);
+    });
+  });
+
+  test("phase:verify-pass blocks when verification has not passed", () => {
+    withTempProject((cwd) => {
+      const originalProgress = executingProgress({
+        status: "execution_complete",
+        verification: {
+          status: "failed",
+          attempts: 1,
+          last_run: "2026-05-26T00:00:00.000Z",
+          report_path: null,
+        },
+      });
+      writeProgress(cwd, originalProgress);
+
+      const result = runForge(cwd, ["phase:verify-pass"]);
+
+      expect(result.status).toBe(1);
+      expect(parseStdout(result)).toMatchObject({
+        ok: false,
+        from: "execution_complete",
+        blocked_by: "verification not passed",
+      });
+      expect(readProgress(cwd).status).toBe("execution_complete");
+    });
+  });
+
+  test("phase:verify-pass promotes execution_complete + passed verification to verified", () => {
+    withTempProject((cwd) => {
+      writeProgress(
+        cwd,
+        executingProgress({
+          status: "execution_complete",
+          completed_tasks: 2,
+          phase_complete_attempts: 0,
+          tasks: [
+            { id: 1, title: "Build parser", status: "done" },
+            { id: 2, title: "Wire command", status: "done" },
+          ],
+          verification: {
+            status: "passed",
+            attempts: 1,
+            last_run: "2026-05-26T00:00:00.000Z",
+            report_path: "reports/verification.json",
+          },
+        }),
+      );
+
+      const result = runForge(cwd, ["phase:verify-pass"]);
+
+      expect(result.status).toBe(0);
+      expect(parseStdout(result)).toEqual({
+        ok: true,
+        from: "execution_complete",
+        to: "verified",
+      });
+      expect(readProgress(cwd)).toMatchObject({
+        status: "verified",
+        verification: { status: "passed", attempts: 1 },
+      });
+    });
+  });
+
+  test("phase:finish blocks status outside verified without modifying progress", () => {
+    withTempProject((cwd) => {
+      const originalProgress = executingProgress({
+        status: "execution_complete",
+        verification: {
+          status: "passed",
+          attempts: 1,
           last_run: "2026-05-26T00:00:00.000Z",
           report_path: "reports/verification.json",
         },
@@ -472,54 +563,28 @@ describe("phase transition commands", () => {
       expect(result.status).toBe(1);
       expect(parseStdout(result)).toEqual({
         ok: false,
-        from: "executing",
-        blocked_by: "status is not verification_complete",
+        from: "execution_complete",
+        blocked_by: "status is not verified",
       });
       expect(readProgress(cwd)).toEqual(originalProgress);
     });
   });
 
-  test("phase:finish blocks when verification has not passed", () => {
+  test("phase:finish resets verified progress to idle", () => {
     withTempProject((cwd) => {
       writeProgress(
         cwd,
         executingProgress({
-          status: "verification_complete",
-          verification: {
-            status: "failed",
-            test_mode: "normal",
-            last_run: "2026-05-26T00:00:00.000Z",
-            report_path: null,
-          },
-        }),
-      );
-
-      const result = runForge(cwd, ["phase:finish"]);
-
-      expect(result.status).toBe(1);
-      expect(parseStdout(result)).toMatchObject({
-        ok: false,
-        from: "verification_complete",
-        blocked_by: "verification not passed",
-      });
-      expect(readProgress(cwd).status).toBe("verification_complete");
-    });
-  });
-
-  test("phase:finish resets passed verification progress to idle", () => {
-    withTempProject((cwd) => {
-      writeProgress(
-        cwd,
-        executingProgress({
-          status: "verification_complete",
+          status: "verified",
           completed_tasks: 2,
+          phase_complete_attempts: 0,
           tasks: [
             { id: 1, title: "Build parser", status: "done" },
             { id: 2, title: "Wire command", status: "done" },
           ],
           verification: {
             status: "passed",
-            test_mode: "normal",
+            attempts: 1,
             last_run: "2026-05-26T00:00:00.000Z",
             report_path: "reports/verification.json",
           },
@@ -531,7 +596,7 @@ describe("phase transition commands", () => {
       expect(result.status).toBe(0);
       expect(parseStdout(result)).toEqual({
         ok: true,
-        from: "verification_complete",
+        from: "verified",
         to: "idle",
       });
       expect(readProgress(cwd)).toMatchObject({
@@ -542,10 +607,11 @@ describe("phase transition commands", () => {
         plan_path: null,
         total_tasks: 0,
         completed_tasks: 0,
+        phase_complete_attempts: 0,
         tasks: [],
         verification: {
           status: "pending",
-          test_mode: "normal",
+          attempts: 0,
           last_run: null,
           report_path: null,
         },

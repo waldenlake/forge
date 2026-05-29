@@ -13,12 +13,28 @@ export type SecurityFinding = {
 
 export type SecurityScanOptions = {
   severityThreshold?: Severity;
+  /**
+   * Skip findings on lines that begin with `//`, `#`, or `;` (after leading
+   * whitespace). On by default — flip to `false` to scan comments too.
+   */
+  ignoreComments?: boolean;
+  /**
+   * Skip files whose path matches any of these glob-like substrings. Defaults
+   * include common test/fixture paths to reduce false positives from sample
+   * passwords and demo secrets in test data.
+   */
+  excludePathPatterns?: string[];
 };
 
 export type SecurityScanResult = {
   ok: boolean;
   findings: SecurityFinding[];
   scanned_files: number;
+  /**
+   * Number of findings suppressed by `ignoreComments` or `excludePathPatterns`.
+   * Surfaced so callers can show "scanned N files, suppressed M findings".
+   */
+  suppressed_count: number;
   scanner: 'pattern' | 'semgrep';
 };
 
@@ -43,6 +59,22 @@ const RULES: Rule[] = [
 
 const SEVERITY_RANK: Record<Severity, number> = { CRITICAL: 3, HIGH: 2, WARNING: 1 };
 
+const DEFAULT_EXCLUDE_PATTERNS = [
+  '.test.ts',
+  '.test.tsx',
+  '.test.js',
+  '.test.jsx',
+  '.spec.ts',
+  '.spec.tsx',
+  '.spec.js',
+  '.spec.jsx',
+  '/test/',
+  '/tests/',
+  '/__tests__/',
+  '/fixtures/',
+  '/__fixtures__/',
+];
+
 function isBinaryContent(content: string): boolean {
   return content.slice(0, 512).includes('\0');
 }
@@ -56,12 +88,38 @@ function redact(match: string): string {
   return `${match.slice(0, 4)}...${match.slice(-4)}`;
 }
 
+function isCommentLine(line: string): boolean {
+  const trimmed = line.replace(/^\s+/, '');
+  return (
+    trimmed.startsWith('//') ||
+    trimmed.startsWith('#') ||
+    trimmed.startsWith(';') ||
+    trimmed.startsWith('* ') ||
+    trimmed === '*'
+  );
+}
+
+function pathMatchesAny(file: string, patterns: string[]): boolean {
+  // Normalize path separators so patterns written with `/` match on Windows too.
+  const normalized = file.replace(/\\/g, '/');
+  return patterns.some((p) => normalized.includes(p));
+}
+
 export function scanFiles(files: string[], options: SecurityScanOptions = {}): SecurityScanResult {
   const threshold = options.severityThreshold ?? 'HIGH';
+  const ignoreComments = options.ignoreComments ?? true;
+  const excludePathPatterns = options.excludePathPatterns ?? DEFAULT_EXCLUDE_PATTERNS;
   const findings: SecurityFinding[] = [];
   let scannedFiles = 0;
+  let suppressedCount = 0;
 
   for (const file of files) {
+    if (excludePathPatterns.length > 0 && pathMatchesAny(file, excludePathPatterns)) {
+      // The file isn't read at all — count it as suppressed but not scanned.
+      suppressedCount++;
+      continue;
+    }
+
     let content: string;
     try { content = readFileSync(file, 'utf8'); } catch (e) { process.stderr.write(`[security-scan] could not read: ${file}: ${(e as Error).message}\n`); continue; }
     if (isBinaryContent(content)) continue;
@@ -70,10 +128,15 @@ export function scanFiles(files: string[], options: SecurityScanOptions = {}): S
     const lines = content.split('\n');
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      const lineIsComment = ignoreComments && isCommentLine(line);
       for (const rule of RULES) {
         const gPattern = new RegExp(rule.pattern.source, rule.pattern.flags.includes('g') ? rule.pattern.flags : rule.pattern.flags + 'g');
         let match;
         while ((match = gPattern.exec(line)) !== null) {
+          if (lineIsComment) {
+            suppressedCount++;
+            continue;
+          }
           findings.push({
             severity: rule.severity,
             type: rule.type,
@@ -88,5 +151,11 @@ export function scanFiles(files: string[], options: SecurityScanOptions = {}): S
   }
 
   const blocking = findings.some((f) => meetsThreshold(f.severity, threshold));
-  return { ok: !blocking, findings, scanned_files: scannedFiles, scanner: 'pattern' };
+  return {
+    ok: !blocking,
+    findings,
+    scanned_files: scannedFiles,
+    suppressed_count: suppressedCount,
+    scanner: 'pattern',
+  };
 }
