@@ -21,8 +21,9 @@ Before calling any Forge Runtime command, resolve the executable:
 FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/plugins/forge/cli/dist/index.js" ]; then echo "node $HOME/.config/opencode/plugins/forge/cli/dist/index.js"; else echo ".forge/bin/forge"; fi; })
 ```
 
-All Runtime commands output JSON. Read the JSON, report blocking errors
-exactly, and do not edit `.forge/*.json` directly.
+All Runtime commands output JSON. Parse the JSON silently, extract only
+relevant fields, and present results using SKILL-UX.md templates. NEVER
+display raw JSON to the user. Do not edit `.forge/*.json` directly.
 
 ## Step 0: Brand Welcome & Input Parsing
 
@@ -69,32 +70,26 @@ Output `▸ Checking environment…`, then run:
 $FORGE_CMD doctor
 ```
 
-The `doctor` command performs the following checks:
-- `cli`, `node` — CRITICAL (runtime)
-- `gitnexus` — CRITICAL (required dependency)
-- `config` — non-critical (`forge init` will create it in Step 2)
-- `progress` — non-critical
-- `git` — non-critical
+Parse the JSON response silently. Do NOT display the raw JSON.
 
-If `ok: false` and any **critical** check failed, output:
+If `ok: false` and any **critical** check failed, output only the failures:
 
 ```
-✘ doctor: <failed checks summary>
-```
-
-For gitnexus specifically:
-
-```
-✘ gitnexus: not installed — required for code-aware indexing
-   Install: npm install -g gitnexus
+✘ doctor: gitnexus not installed — install: npm install -g gitnexus
 ```
 
 STOP only on critical failures. A missing `config` is expected for first-time
 use and does not block — proceed to Step 2 (init will create it).
 
+If all critical checks pass, output a single summary line:
+
+```
+✔ Environment ready  ·  node <version>  ·  gitnexus <version>
+```
+
 ## Step 2: forge status / init
 
-Output `▸ Checking project state…`, then run `$FORGE_CMD status`.
+Run `$FORGE_CMD status`. Parse the JSON silently.
 
 If config is absent, run:
 
@@ -102,9 +97,13 @@ If config is absent, run:
 $FORGE_CMD init --auto-detect
 ```
 
-This auto-detects superpowers, gstack (writes `gstack_installed` to config),
-and runs the GitNexus baseline index (non-blocking — failures emit a warning
-but do not abort init).
+Output a single result line:
+
+```
+✔ Project initialized  ·  <project_type>  ·  <test_framework>
+```
+
+Do NOT display raw JSON from status or init.
 
 If status reports `migration_required: true`, output:
 
@@ -157,52 +156,15 @@ file. Skill execution must obey those rules until the feature reaches
 
 ## Step 5: Display global Checklist
 
-Output the full feature lifecycle Checklist:
+Output the lifecycle overview (compact — one line per phase):
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Feature Lifecycle Checklist                                 │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  /start (current)                                           │
-│  ☑ Environment check (superpowers, gitnexus, gstack)        │
-│  ☑ Project init / status                                    │
-│  ☑ GitNexus baseline index                                  │
-│  ☑ Feature registered                                       │
-│                                                             │
-│  /planning                                                  │
-│  ☐ Brainstorm → spec.md                                     │
-│  ☐ Scenarios generation (P0/P1/P2)                          │
-│  ☐ Schema validation                                        │
-│  ☐ Plan generation → plan.md                                │
-│  ☐ Plan registration (task extraction)                      │
-│                                                             │
-│  /executing                                                 │
-│  ☐ Per-task TDD cycle (RED → GREEN → REFACTOR)              │
-│  ☐ Per-task Spec Compliance Review                          │
-│  ☐ Per-task Code Quality Review                             │
-│  ☐ GitNexus index update (after each task:done)             │
-│  ☐ Final Code Review (cross-task consistency)               │
-│  ☐ Branch finishing (tests + build + git clean)             │
-│  ☐ Holistic spec-compliance review                          │
-│                                                             │
-│  /verify                                                    │
-│  ☐ Full test suite (all profiles)                           │
-│  ☐ Coverage threshold check                                 │
-│  ☐ Build verification                                       │
-│  ☐ gstack basic tests (not yet implemented)                  │
-│  ☐ Security scan (configurable)                             │
-│  ☐ Dependency audit (configurable)                          │
-│  ☐ E2E / visual / performance (not yet implemented)          │
-│                                                             │
-│  /done                                                      │
-│  ☐ Phase finish                                             │
-│  ☐ Scenarios archive                                        │
-│  ☐ Memory write                                             │
-│  ☐ GitNexus final index update                              │
-│  ☐ Environment reset + backup                               │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+Feature Lifecycle:
+  ☑ /start    — environment, init, feature registered
+  ☐ /planning — brainstorm → spec → scenarios → plan → advance
+  ☐ /executing — per-task TDD + review + guards
+  ☐ /verify   — tests, build, security, dependency audit
+  ☐ /done     — finish, archive, reset
 ```
 
 ## Step 6: Auto-advance to /planning

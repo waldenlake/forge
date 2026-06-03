@@ -135,3 +135,12 @@ For blocked transitions:
 - **STOP Block is always the last thing output.** Nothing after the `▸ Next:` line.
 - For multi-step completions (e.g. several tasks), batch the `✔` lines
   together before the STOP Block — do not interleave with prose.
+- **NEVER display raw JSON from CLI commands.** All `$FORGE_CMD` commands
+  output JSON — parse it silently, extract only the relevant fields, and
+  present human-readable results using the templates above. If you need to
+  report an error, use the Error Line format (`✘ command: error message`),
+  not the raw JSON payload.
+- **Consolidate adjacent progress lines.** If multiple checks complete in
+  sequence (e.g. doctor + status + init), output them as a single block
+  with one progress line and a summary result — do not split each into a
+  separate message with its own `▸` line.

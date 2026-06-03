@@ -24,8 +24,9 @@ Before calling any Forge Runtime command, resolve the executable:
 FORGE_CMD=$(command -v forge 2>/dev/null || { if [ -f "$HOME/.config/opencode/plugins/forge/cli/dist/index.js" ]; then echo "node $HOME/.config/opencode/plugins/forge/cli/dist/index.js"; else echo ".forge/bin/forge"; fi; })
 ```
 
-All Runtime commands output JSON. Read the JSON, report blocking errors
-exactly, and never edit `.forge/*.json` directly.
+All Runtime commands output JSON. Parse the JSON silently, extract only
+relevant fields, and present results using SKILL-UX.md templates. NEVER
+display raw JSON to the user. Never edit `.forge/*.json` directly.
 
 ## Output Format
 
