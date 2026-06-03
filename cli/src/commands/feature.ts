@@ -84,12 +84,14 @@ guard fails, subagent is unavailable, or all phases complete.
 When forge CLI returns ok:false: report the error exactly and stop immediately.
 
 CONTEXT BUDGET:
-  Approaching context limit: summarize current state, prompt to restart
-  the session. Do not continue on a degraded context.
-  Token budget reference: ~4k per subtask, ~30k per session.
   After each task completes, assess whether you have sufficient context
-  remaining to execute the next task. If not, run /session-handoff and
-  instruct the user to start a new session with /resume.`;
+  remaining to execute the next task with full quality (TDD + 3-stage
+  review). Signs of degraded context: forgetting earlier task details,
+  repeating questions already answered, losing track of the plan structure,
+  or noticing that the system has compressed earlier messages.
+  If context is insufficient, run /session-handoff and instruct the user
+  to start a new session with /resume.
+  Do not wait until context is critically low — hand off proactively.`;
 
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
