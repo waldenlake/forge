@@ -51,7 +51,7 @@ function writeConfig(cwd: string, config: ForgeConfig): void {
 }
 
 describe("guard:run action dispatch", () => {
-  test("gstack actions are returned as delegated_actions, not executed inline", () => {
+  test("delegated guard types are rejected with ok:false and error message", () => {
     withTempProject((cwd) => {
       writeConfig(
         cwd,
@@ -75,17 +75,17 @@ describe("guard:run action dispatch", () => {
         "3",
       ]);
 
-      expect(result.status).toBe(0);
+      expect(result.status).toBe(1);
       const payload = parseStdout(result) as Record<string, unknown>;
-      expect(payload.ok).toBe(true);
+      expect(payload.ok).toBe(false);
+      expect(payload.delegated).toBe(true);
       expect(payload.type).toBe("batch-review");
-      // All actions are delegated — gstack is handled by the skill layer
       expect(payload.delegated_actions).toEqual(["spec-compliance-review", "gstack-e2e"]);
-      expect(payload.executed).toEqual([]);
+      expect(payload.error).toMatch(/delegated/);
     });
   });
 
-  test("gstack actions are delegated even when gstack_installed=false", () => {
+  test("delegated guard rejection includes actions even when gstack_installed=false", () => {
     withTempProject((cwd) => {
       writeConfig(
         cwd,
@@ -109,16 +109,15 @@ describe("guard:run action dispatch", () => {
         "3",
       ]);
 
-      // Delegated — the skill layer is responsible for checking gstack availability
-      expect(result.status).toBe(0);
+      expect(result.status).toBe(1);
       const payload = parseStdout(result) as Record<string, unknown>;
-      expect(payload.ok).toBe(true);
+      expect(payload.ok).toBe(false);
+      expect(payload.delegated).toBe(true);
       expect(payload.delegated_actions).toEqual(["gstack-visual"]);
-      expect(payload.executed).toEqual([]);
     });
   });
 
-  test("non-gstack actions are returned as delegated_actions", () => {
+  test("non-gstack delegated actions are also rejected by guard:run", () => {
     withTempProject((cwd) => {
       writeConfig(
         cwd,
@@ -141,12 +140,12 @@ describe("guard:run action dispatch", () => {
         "5",
       ]);
 
-      expect(result.status).toBe(0);
+      expect(result.status).toBe(1);
       const payload = parseStdout(result) as Record<string, unknown>;
-      expect(payload.ok).toBe(true);
+      expect(payload.ok).toBe(false);
+      expect(payload.delegated).toBe(true);
       expect(payload.type).toBe("batch-review");
       expect(payload.delegated_actions).toEqual(["spec-compliance-review"]);
-      expect(payload.executed).toEqual([]);
     });
   });
 });

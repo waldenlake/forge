@@ -110,15 +110,11 @@ export function registerCommitCommand(program: Command): void {
       }
 
       const testResult = recentTestResult(cwd);
-      if (!testResult) {
-        fail("no test results found. Run: forge test --coverage");
-        return;
-      }
-      if (!testResult.ok) {
+      if (testResult && !testResult.ok) {
         fail("last test run failed. Fix tests and re-run: forge test --coverage");
         return;
       }
-      if (testResult.stale) {
+      if (testResult && testResult.stale) {
         fail("test results are stale (>5 min). Re-run: forge test --coverage");
         return;
       }

@@ -49,6 +49,19 @@ function fail(error: string): void {
 }
 
 function parseTasks(value: string): number[] | null {
+  // Support both CSV (7,8,9) and range (7-9) syntax.
+  const rangeParts = value.match(/^(\d+)-(\d+)$/);
+  if (rangeParts) {
+    const start = Number(rangeParts[1]);
+    const end = Number(rangeParts[2]);
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) {
+      return null;
+    }
+    const ids: number[] = [];
+    for (let i = start; i <= end; i++) ids.push(i);
+    return ids;
+  }
+
   const ids = value.split(",").map((part) => Number(part.trim()));
 
   if (
@@ -289,16 +302,18 @@ export function registerGuardCommand(program: Command): void {
       }
 
       // Delegated types: batch-review, human-review, performance-budget, etc.
-      // All configured actions are returned as delegated_actions for the skill
-      // layer to dispatch (e.g. spec-compliance-review via Superpowers,
-      // gstack-* via the gstack skill).
+      // These guards require AI-driven actions (e.g. spec-compliance-review)
+      // and cannot be executed by the CLI. The run-loop handles them via
+      // invoke-skill, not guard:run. If called directly, return an error so
+      // the caller knows to use the run-loop path instead.
+      process.exitCode = 1;
       const guardConfig = config.guards[type];
       const actions = guardConfig?.actions ?? [];
       writeJson({
-        ok: true,
-        delegated: true,
+        ok: false,
+        error: `guard type "${type}" is delegated and cannot be executed by guard:run. Use forge run-loop which routes delegated guards to the executing skill automatically.`,
         type,
-        executed: [],
+        delegated: true,
         delegated_actions: actions,
       });
     });

@@ -2,6 +2,8 @@
 import { Command, CommanderError } from "commander";
 import { registerAuditCommand } from "./commands/audit.js";
 import { registerCommitCommand } from "./commands/commit.js";
+import { registerConfigBuildCommand } from "./commands/config-build.js";
+import { registerConfigTestCommand } from "./commands/config-test.js";
 import { registerConfigVerifyCommand } from "./commands/config-verify.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
 import { registerFeatureCommand } from "./commands/feature.js";
@@ -78,6 +80,8 @@ async function main(argv: string[]): Promise<void> {
   registerTestCommand(program);
   registerVerifyCommand(program);
   registerConfigVerifyCommand(program);
+  registerConfigBuildCommand(program);
+  registerConfigTestCommand(program);
   registerCommitCommand(program);
   registerAuditCommand(program);
   registerResetCommand(program);

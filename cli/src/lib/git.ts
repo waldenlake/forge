@@ -39,6 +39,12 @@ export function git(cwd: string, args: string[]): GitResult {
   const result = spawnSync("git", args, {
     cwd,
     encoding: "utf8",
+    env: {
+      ...process.env,
+      // Suppress "LF will be replaced by CRLF" warnings on Windows.
+      // These flood output and provide no actionable information.
+      GIT_CONFIG_PARAMETERS: "'core.safecrlf=false'",
+    },
   });
   const status = result.status ?? 1;
 

@@ -19,6 +19,15 @@
       "enum": ["CLAUDE.md", "AGENTS.md", "GEMINI.md"]
     },
     "gstack_installed": { "type": "boolean" },
+    "build_command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "working_dir"],
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "working_dir": { "type": "string", "minLength": 1 }
+      }
+    },
     "test_coverage": {
       "type": "object",
       "additionalProperties": false,

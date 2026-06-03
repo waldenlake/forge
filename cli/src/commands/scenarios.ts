@@ -162,16 +162,18 @@ export function registerScenariosCommand(program: Command): void {
       });
     });
 
-  program.command("scenarios:archive").action(() => {
+  program.command("scenarios:archive")
+    .option("--feature <slug>", "feature slug (overrides progress.feature)")
+    .action((options: { feature?: string }) => {
     const cwd = process.cwd();
-    const progress = readProgress(cwd);
-    if (!progress.feature) {
-      fail("progress.feature is required to archive scenarios");
+    const feature = options.feature ?? readProgress(cwd).feature;
+    if (!feature) {
+      fail("feature name is required — pass --feature <slug> or ensure progress.feature is set");
       return;
     }
 
-    if (!safeFeatureSlug(progress.feature)) {
-      fail("progress.feature must be a safe feature slug");
+    if (!safeFeatureSlug(feature)) {
+      fail("feature must be a safe feature slug");
       return;
     }
 
@@ -182,7 +184,7 @@ export function registerScenariosCommand(program: Command): void {
     }
 
     const archiveDir = join(cwd, ".forge", "specs");
-    const archivePath = `.forge/specs/${progress.feature}-scenarios.json`;
+    const archivePath = `.forge/specs/${feature}-scenarios.json`;
     mkdirSync(archiveDir, { recursive: true });
     copyFileSync(sourcePath, join(cwd, archivePath));
 

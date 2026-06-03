@@ -5,7 +5,7 @@ import { detectBuildCommand } from "../lib/buildCheck.js";
 import { isWorkingTreeClean } from "../lib/gitStatus.js";
 import { gitNexusUpdate, isGitNexusInstalled } from "../lib/gitnexus.js";
 import { runShellCommand } from "../lib/runner.js";
-import { readConfig } from "../state/config.js";
+import { readConfig, type ForgeConfig } from "../state/config.js";
 import {
   type ForgeProgress,
   idleProgress,
@@ -160,7 +160,9 @@ export function registerPhaseCommand(program: Command): void {
     // Build gate: the project must compile / build at this point. /verify will
     // run a fuller suite, but build failure is fast-fail and needs no test
     // setup, so we surface it here before transitioning state.
-    const buildCommand = detectBuildCommand(cwd);
+    let phaseConfig: ForgeConfig | undefined;
+    try { phaseConfig = readConfig(cwd); } catch { /* config may not exist */ }
+    const buildCommand = detectBuildCommand(cwd, phaseConfig);
     if (buildCommand) {
       const build = runShellCommand(
         cwd,
@@ -252,6 +254,8 @@ export function registerPhaseCommand(program: Command): void {
       return;
     }
 
+    const feature = progress.feature;
+
     // GitNexus final index update before resetting state. Non-blocking.
     if (isGitNexusInstalled()) {
       gitNexusUpdate(cwd);
@@ -275,6 +279,7 @@ export function registerPhaseCommand(program: Command): void {
       ok: true,
       from: "verified",
       to: "idle",
+      feature,
     });
   });
 }

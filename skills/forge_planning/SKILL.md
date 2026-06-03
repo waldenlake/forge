@@ -107,6 +107,30 @@ Output `▸ Writing plan…` and invoke `superpowers:writing-plans` with:
 - Constraint: each task must be 2–5 minutes of work, contain TDD steps,
   and reference the related scenario IDs in its description.
 
+**Task cohesion rules** (MANDATORY — prevents "nothing to implement" tasks):
+- Features that share implementation context MUST be in the same task.
+  Examples: Login + Register share auth service/context; CRUD operations on
+  the same entity share model/API layer; related form pages share validation.
+- A task must produce new, testable code. If task B would reuse everything
+  task A already built (same service, same component, same API), merge B
+  into A.
+- Split by implementation boundary (backend vs frontend, different services,
+  different data models), NOT by user-facing feature name.
+- When uncertain, prefer fewer larger tasks over many tiny tasks. A task
+  that takes 10 minutes is better than two tasks where the second has
+  "nothing new to write."
+
+**Frontend/UI task rules** (when the feature includes UI work):
+- If the user provided design assets (screenshots, mockups, Figma links,
+  design specs) in the requirement or spec, reference them in each UI
+  task's description: `design_ref: <path or URL>`.
+- If the project has an existing frontend, note the CSS framework and
+  component patterns in the plan preamble so all UI tasks stay consistent.
+- Each UI task description should specify: target page/component, layout
+  expectations, and which existing components to reuse.
+- Do NOT split a page's structure and styling into separate tasks. A
+  single task should produce a complete, styled page/component.
+
 The plan output goes to `docs/plans/<feature_slug>.md` (or whatever path
 the writing-plans skill produces). The plan path will be picked up by
 `plan:register`.
@@ -172,6 +196,8 @@ To configure (optional):
   $FORGE_CMD config:verify --coverage-unit 75
   $FORGE_CMD config:verify --security-severity MEDIUM
   $FORGE_CMD config:verify --license-allowlist MIT,Apache-2.0,ISC,BSD-3-Clause
+  $FORGE_CMD config:test --add default --framework vitest --command "npm test"
+  $FORGE_CMD config:build --command "npm run build"
 
 Reply: continue (default) | configure <args>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

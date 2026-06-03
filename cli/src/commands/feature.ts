@@ -81,7 +81,15 @@ YOU ARE VIOLATING THESE RULES if you:
 
 STOP only when: run-loop returns wait-human, run-loop returns ok:false,
 guard fails, subagent is unavailable, or all phases complete.
-When forge CLI returns ok:false: report the error exactly and stop immediately.`;
+When forge CLI returns ok:false: report the error exactly and stop immediately.
+
+CONTEXT BUDGET:
+  Approaching context limit: summarize current state, prompt to restart
+  the session. Do not continue on a degraded context.
+  Token budget reference: ~4k per subtask, ~30k per session.
+  After each task completes, assess whether you have sufficient context
+  remaining to execute the next task. If not, run /session-handoff and
+  instruct the user to start a new session with /resume.`;
 
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);

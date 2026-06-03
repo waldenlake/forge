@@ -200,7 +200,7 @@ function computeVerifyPlan(cwd: string, config: ForgeConfig): VerifyPlan {
 
   // Required steps: tests + build always run.
   willRun.push({ name: "tests" });
-  const buildCommand = detectBuildCommand(cwd);
+  const buildCommand = detectBuildCommand(cwd, config);
   if (buildCommand) {
     willRun.push({ name: "build" });
   } else {
@@ -356,7 +356,7 @@ export function registerVerifyCommand(program: Command): void {
       });
 
       // Step 2: REQUIRED — build (when project has a buildable marker).
-      const buildCommand = tests.ok ? detectBuildCommand(cwd) : null;
+      const buildCommand = tests.ok ? detectBuildCommand(cwd, config) : null;
       const build = buildCommand
         ? runShellCommand(cwd, buildCommand.working_dir, buildCommand.command)
         : null;

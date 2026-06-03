@@ -179,7 +179,7 @@ describe("phase 2 stub interfaces", () => {
     });
   });
 
-  test("guard:run delegates non-scanner types with ok=true", () => {
+  test("guard:run rejects non-scanner (delegated) types with ok=false", () => {
     withTempProject((cwd) => {
       writeConfig(cwd);
 
@@ -191,9 +191,9 @@ describe("phase 2 stub interfaces", () => {
         "5",
       ]);
 
-      expect(result.status).toBe(0);
+      expect(result.status).toBe(1);
       expect(parseStdout(result)).toMatchObject({
-        ok: true,
+        ok: false,
         delegated: true,
         type: "batch-review",
       });
@@ -269,7 +269,7 @@ describe("phase 2 stub interfaces", () => {
       expect(result.status).toBe(1);
       expect(parseStdout(result)).toEqual({
         ok: false,
-        error: "progress.feature is required to archive scenarios",
+        error: "feature name is required — pass --feature <slug> or ensure progress.feature is set",
       });
     });
   });
@@ -284,7 +284,7 @@ describe("phase 2 stub interfaces", () => {
       expect(result.status).toBe(1);
       expect(parseStdout(result)).toEqual({
         ok: false,
-        error: "progress.feature must be a safe feature slug",
+        error: "feature must be a safe feature slug",
       });
       expect(existsSync(join(cwd, ".forge", "specs"))).toBe(false);
     });

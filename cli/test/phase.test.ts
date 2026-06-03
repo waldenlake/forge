@@ -598,6 +598,7 @@ describe("phase transition commands", () => {
         ok: true,
         from: "verified",
         to: "idle",
+        feature: "auth",
       });
       expect(readProgress(cwd)).toMatchObject({
         feature: null,

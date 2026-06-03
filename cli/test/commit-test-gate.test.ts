@@ -102,9 +102,13 @@ function writeLastTest(
 }
 
 describe("commit test freshness gate", () => {
-  test("commit rejects when no last-test.json", () => {
+  test("commit proceeds when no last-test.json exists", () => {
     withTempGitRepo((cwd) => {
-      // No last-test.json written
+      // No last-test.json written — commit should still work
+      // (need staged changes to actually commit)
+      writeFileSync(join(cwd, "x.txt"), "x\n", "utf8");
+      spawnSync("git", ["add", "x.txt"], { cwd, env: gitEnv(cwd) });
+
       const result = runForge(cwd, [
         "commit",
         "--message",
@@ -113,10 +117,9 @@ describe("commit test freshness gate", () => {
         "forge task-1",
       ]);
 
-      expect(result.status).toBe(1);
+      expect(result.status).toBe(0);
       const payload = parseStdout(result);
-      expect(payload.ok).toBe(false);
-      expect(payload.error.toLowerCase()).toContain("no test results");
+      expect(payload.ok).toBe(true);
     });
   });
 

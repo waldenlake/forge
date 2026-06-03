@@ -28,6 +28,10 @@ export type ForgeConfig = {
   forge_cli_version: string;
   memory_file: MemoryFile;
   gstack_installed?: boolean;
+  build_command?: {
+    command: string;
+    working_dir: string;
+  };
   test_coverage?: {
     unit?: number;
     integration?: number;

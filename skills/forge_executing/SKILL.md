@@ -53,6 +53,49 @@ $FORGE_CMD task:start --id <task_id>
 
 If `ok` is false: output `✘ task:start: <error>` and STOP.
 
+### D1.5: Frontend design context (only for UI tasks)
+
+Determine if this task involves frontend/UI work by checking the task title
+and description for signals: page, component, form, layout, modal, dialog,
+dashboard, UI, view, screen, style, CSS, responsive, etc.
+
+If the task does NOT involve frontend UI, skip to D2.
+
+If it DOES involve frontend UI, resolve the design context in this priority:
+
+**Priority 1 — User-provided design assets:**
+Check the spec file (`progress.spec_path`) and the plan file
+(`progress.plan_path`) for references to:
+- Screenshots, mockups, or Figma links
+- Design tokens, color palettes, or typography specs
+- Specific UI framework or component library requirements
+
+If found: extract the design constraints and pass them to the subagent in D2
+as part of the task context.
+
+**Priority 2 — Existing project style:**
+If the project already has frontend code (check for `src/components/`,
+`src/pages/`, `src/app/`, `app/`, `pages/`, or similar), read 2–3 existing
+components to extract:
+- CSS framework in use (Tailwind, CSS Modules, styled-components, etc.)
+- Color scheme and spacing patterns
+- Component structure and naming conventions
+
+Pass these as "style reference" to the subagent: "Match the existing project
+style found in `<files>`."
+
+**Priority 3 — No design context available:**
+Invoke the `frontend-design` skill to generate a design direction BEFORE
+the subagent begins implementation. Output:
+
+```
+▸ No UI design provided — generating design direction…
+```
+
+The frontend-design skill will produce a design brief (aesthetic direction,
+color palette, typography, layout approach). Pass its output as design
+context to the subagent in D2.
+
 ### D2: Subagent-driven implementation (3 sub-stages, ALL required)
 
 Output `→ Subagent: task <id> — <title>` then invoke
