@@ -89,9 +89,13 @@ CONTEXT BUDGET:
   review). Signs of degraded context: forgetting earlier task details,
   repeating questions already answered, losing track of the plan structure,
   or noticing that the system has compressed earlier messages.
-  If context is insufficient, run /session-handoff and instruct the user
-  to start a new session with /resume.
-  Do not wait until context is critically low — hand off proactively.`;
+  If context is insufficient:
+    1. Run $FORGE_CMD memory:set-feature (save handoff state)
+    2. Output exactly (pick the line matching the current platform):
+       ⚠ Context limit — start a new session, then run /resume
+       Claude Code: /clear then /resume
+       OpenCode/Codex: /new then /resume
+    3. STOP. No further explanation.`;
 
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
