@@ -32,6 +32,17 @@ export type CoverageTargets = {
   integration?: number;
 };
 
+export function parseLcov(content: string): IstanbulMetrics | null {
+  let linesFound = 0, linesHit = 0;
+  for (const line of content.split('\n')) {
+    if (line.startsWith('LF:')) linesFound += parseInt(line.slice(3), 10);
+    if (line.startsWith('LH:')) linesHit  += parseInt(line.slice(3), 10);
+  }
+  if (linesFound === 0) return null;
+  const pct = Math.round((linesHit / linesFound) * 1000) / 10;
+  return { lines: pct, statements: pct, functions: pct, branches: pct };
+}
+
 export function parseIstanbulSummary(content: string): IstanbulMetrics | null {
   try {
     const parsed = JSON.parse(content) as {
@@ -91,23 +102,11 @@ export function checkCoverage(
     };
   }
 
-  // lcov.info detected but not parsed in this round.
-  // BUG-C01: Skill layer needs a structured `error` so the user sees why the
-  // gate failed instead of a silent ok:false. Long-term we should parse `LF:`
-  // counters per file, but until then we surface an explicit reason.
-  if (resolvedPath.endsWith('lcov.info')) {
-    return {
-      ok: false,
-      coverage: {},
-      report_path: resolvedPath,
-      format: 'lcov',
-      error:
-        'lcov format not yet supported by coverage gate. Configure your test runner to emit Istanbul JSON (coverage-summary.json or coverage-final.json), or install @istanbuljs/nyc-config-typescript to convert lcov to Istanbul JSON.',
-    };
-  }
-
   const content = readFileSync(resolvedPath, 'utf8');
-  const metrics = parseIstanbulSummary(content);
+  const metrics = resolvedPath.endsWith('lcov.info')
+    ? parseLcov(content)
+    : parseIstanbulSummary(content);
+  const format = resolvedPath.endsWith('lcov.info') ? 'lcov' as const : 'istanbul' as const;
 
   if (!metrics) {
     return {
@@ -121,8 +120,6 @@ export function checkCoverage(
   const coverage: CoverageCheckResult['coverage'] = {};
   let allOk = true;
 
-  // unit coverage = line coverage percentage (Istanbul standard)
-  // integration coverage = branch coverage percentage
   if (targets.unit !== undefined) {
     coverage.unit = makeMetric(metrics.lines, targets.unit);
     if (!coverage.unit.ok) allOk = false;
@@ -137,6 +134,6 @@ export function checkCoverage(
     ok: allOk,
     coverage,
     report_path: resolvedPath,
-    format: 'istanbul',
+    format,
   };
 }

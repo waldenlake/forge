@@ -5,7 +5,8 @@ description: Resume work after session interruption
 
 # /resume
 
-Resume interrupted work from Runtime state and git evidence.
+Resume interrupted work from Runtime state and git evidence, then converge
+on `forge next-action` for the next step.
 
 ## Forge CLI
 
@@ -35,7 +36,6 @@ Follow the Forge Skill UX Standard (`skills/SKILL-UX.md`).
 Feature:  <feature>
 Status:   <status>
 Progress: <completed>/<total> tasks done
-Next:     Task <id>  ·  <title>
 ```
 
 **STOP block**:
@@ -116,14 +116,10 @@ Print the status summary block:
 Feature:  <feature>
 Status:   <status>
 Progress: <completed>/<total> tasks done
-Next:     Task <id>  ·  <title>
 ```
 
-Where `Next` is:
-- First task with status `in_progress`, if any.
-- Otherwise, first task with status `pending`.
-- If all tasks are done/deferred: `verification` (if not yet verified) or
-  `/done` (if verified).
+If any task has `reset_reason`, show:
+`Task <id> was interrupted by /bugfix — will be fully re-executed`
 
 Then output the confirmation prompt:
 
@@ -137,8 +133,8 @@ STOP. Wait for user reply.
 
 ### 5. Handle user reply
 
-- **`yes`**: invoke the `/next` skill directly. Do not re-read state or repeat
-  the summary.
+- **`yes`**: Call `forge run-loop` and dispatch its output (same logic as
+  `/next` Step 2). The `/next` loop takes over from here.
 - **`show-task`**: read the plan file at `status.plan_path` and display only
   the current task definition (id, title, description, TDD steps). Then repeat
   the confirmation prompt from Step 4.
@@ -148,8 +144,8 @@ STOP. Wait for user reply.
 
 | Status | Handling |
 |---|---|
-| `planning`, no plan yet | Summary shows "Next: write plan". After yes → invoke /next |
-| `planning`, plan registered | Summary shows "Next: advance to execution". After yes → invoke /next |
+| `planning`, no plan yet | Summary shows "Next: write plan". After yes → call next-action |
+| `planning`, plan registered | Summary shows "Next: advance to execution". After yes → call next-action |
 | `executing`, guard failed | Show guard failure from audit. Output STOP block until user resolves |
 | `executing`, task has `reset_reason` | Show "Task N was interrupted by /bugfix — will be fully re-executed" before the status summary |
 | `verified` | Summary shows "Next: /done". Prompt accordingly |

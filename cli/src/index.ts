@@ -2,15 +2,18 @@
 import { Command, CommanderError } from "commander";
 import { registerAuditCommand } from "./commands/audit.js";
 import { registerCommitCommand } from "./commands/commit.js";
+import { registerConfigVerifyCommand } from "./commands/config-verify.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
 import { registerFeatureCommand } from "./commands/feature.js";
 import { registerGuardCommand } from "./commands/guard.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerMemoryCommand } from "./commands/memory.js";
 import { registerMigrateCommand } from "./commands/migrate.js";
+import { registerNextActionCommand } from "./commands/next-action.js";
 import { registerPhaseCommand } from "./commands/phase.js";
 import { registerPlanCommand } from "./commands/plan.js";
 import { registerResetCommand } from "./commands/reset.js";
+import { registerRunLoopCommand } from "./commands/run-loop.js";
 import { registerSchemaValidateCommand } from "./commands/schema-validate.js";
 import { registerScenariosCommand } from "./commands/scenarios.js";
 import { registerStatusCommand } from "./commands/status.js";
@@ -74,10 +77,13 @@ async function main(argv: string[]): Promise<void> {
   registerScenariosCommand(program);
   registerTestCommand(program);
   registerVerifyCommand(program);
+  registerConfigVerifyCommand(program);
   registerCommitCommand(program);
   registerAuditCommand(program);
   registerResetCommand(program);
   registerMemoryCommand(program);
+  registerNextActionCommand(program);
+  registerRunLoopCommand(program);
 
   program.hook("preAction", (_thisCommand, actionCommand) => {
     const opts = program.opts<{ logFile?: string }>();

@@ -135,9 +135,10 @@ function executingProgress(overrides: Partial<ForgeProgress> = {}): ForgeProgres
 }
 
 describe("git, audit, and reset commands", () => {
-  test("commit --message --tag stages all changes and commits with the forge tag", () => {
+  test("commit --message --tag stages tracked changes and commits with the forge tag", () => {
     withTempGitRepo((cwd) => {
       writeFileSync(join(cwd, "x.txt"), "x\n", "utf8");
+      spawnSync("git", ["add", "x.txt"], { cwd, env: gitEnv(cwd) });
       writeLastTest(cwd);
 
       const result = runForge(cwd, [

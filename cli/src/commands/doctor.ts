@@ -46,9 +46,9 @@ export function registerDoctorCommand(program: Command): void {
           ? null
           : "Node.js 18 or newer is required",
       ),
-      check("config", true, () => {
+      check("config", false, () => {
         if (!existsSync(configPath(cwd))) {
-          return ".forge/config.json not found";
+          return ".forge/config.json not found (run `forge init`)";
         }
 
         readConfig(cwd);

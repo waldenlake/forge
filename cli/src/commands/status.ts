@@ -1,9 +1,10 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import type { Command } from "commander";
 import type { ForgeConfig } from "../state/config.js";
 import { configPath, readConfig } from "../state/config.js";
 import type { ForgeProgress, ForgeTask } from "../state/progress.js";
 import { idleProgress, progressPath, readProgress } from "../state/progress.js";
+import { readProgressLoose, readRawConfigVersion } from "../state/looseRead.js";
 import { triggeredGuards } from "../lib/guard.js";
 
 type GuardPreview = {
@@ -70,43 +71,6 @@ function deferredTaskCount(progress: ForgeProgress): number {
 
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
-}
-
-function readRawConfigVersion(cwd: string): string | null {
-  const raw = JSON.parse(readFileSync(configPath(cwd), "utf8")) as {
-    version?: unknown;
-  };
-
-  return typeof raw.version === "string" ? raw.version : null;
-}
-
-function readProgressLoose(cwd: string):
-  | { ok: true; progress: ForgeProgress }
-  | { ok: false; error: string; raw_status: string | null } {
-  if (!existsSync(progressPath(cwd))) {
-    return { ok: true, progress: idleProgress() };
-  }
-
-  // First read raw JSON to capture pre-validation status; this lets us tell
-  // the user what stale state they are sitting on (e.g. "verification_complete"
-  // from a pre-Phase-1 progress.json) without blowing up on schema validation.
-  let raw: unknown;
-  try {
-    raw = JSON.parse(readFileSync(progressPath(cwd), "utf8"));
-  } catch (e) {
-    return { ok: false, error: `progress.json parse error: ${(e as Error).message}`, raw_status: null };
-  }
-
-  const rawStatus =
-    raw && typeof raw === "object" && typeof (raw as { status?: unknown }).status === "string"
-      ? ((raw as { status: string }).status)
-      : null;
-
-  try {
-    return { ok: true, progress: readProgress(cwd) };
-  } catch (e) {
-    return { ok: false, error: (e as Error).message, raw_status: rawStatus };
-  }
 }
 
 function currentStatus(cwd: string): ReturnType<typeof idleProgress> {

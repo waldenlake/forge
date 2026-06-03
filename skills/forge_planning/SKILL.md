@@ -5,11 +5,12 @@ description: Phase 2 — Brainstorm spec, generate scenarios, write plan, advanc
 
 # /planning
 
-Drive the Forge workflow through Phase 2 — needs to plans:
-brainstorm → spec → scenarios → plan → register → advance.
+Drive the Forge workflow through Phase 2 — brainstorm → spec → scenarios →
+validate → plan → register → advance. Then return control to the `/next`
+loop.
 
-This skill owns the planning phase end-to-end. It must finish with the
-feature in `executing` state (or stop with an explicit blocker).
+This skill owns the creative planning work. It does NOT judge which phase
+to enter next — that is owned by `forge next-action`.
 
 ## Forge CLI
 
@@ -142,12 +143,51 @@ If `ok` is false:
 
 STOP.
 
-### Step 6: Auto-advance to /executing
+### Step 6: Verify-config checkpoint
 
-After plan registration and `phase:advance` succeed, do NOT stop.
-Immediately invoke the `/executing` skill to begin Phase 3.
+After `phase:advance` succeeds, output `▸ Showing verification plan…` and run:
 
-Output `▸ Advancing to executing…` then invoke `/executing`.
+```bash
+$FORGE_CMD verify --plan
+```
+
+Display the plan as a table:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✔ Plan registered, advanced to executing.
+
+Verification plan (will run automatically at /verify):
+  ✔ tests
+  ✔ build
+  ✔ security_scan       (severity ≥ HIGH)
+  ✔ dependency_audit    (allowlist: MIT, Apache-2.0, ISC)
+  ✘ gstack-basic        (gstack_installed = false)
+  ✘ e2e                 (opt-in, disabled)
+  ✘ visual_regression   (opt-in, disabled)
+  ✘ performance         (opt-in, disabled)
+
+To configure (optional):
+  $FORGE_CMD config:verify --enable e2e,visual_regression
+  $FORGE_CMD config:verify --coverage-unit 75
+  $FORGE_CMD config:verify --security-severity MEDIUM
+  $FORGE_CMD config:verify --license-allowlist MIT,Apache-2.0,ISC,BSD-3-Clause
+
+Reply: continue (default) | configure <args>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+STOP and wait for user reply.
+
+- **`continue`** (or empty reply): proceed to Step 7.
+- **`configure <args>`**: run the indicated `config:verify` command, re-display
+  the plan, then re-prompt. Loop until user says `continue`.
+
+### Step 7: Return control
+
+After the user confirms verify config (or accepts defaults), return control
+to the `/next` loop. The next call to `run-loop` will see status=executing
+and route to `/executing`.
 
 ## Error Handling
 

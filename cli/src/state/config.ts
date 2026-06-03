@@ -92,7 +92,7 @@ export function defaultConfig(input: DefaultConfigInput = {}): ForgeConfig {
     guards: input.guards ?? {
       "batch-review": {
         enabled: true,
-        every_n_tasks: 6,
+        every_n_tasks: 3,
         actions: ["spec-compliance-review"],
       },
       "coverage-gate": {

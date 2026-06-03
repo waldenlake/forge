@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   parseIstanbulSummary,
+  parseLcov,
   checkCoverage,
   type CoverageCheckResult,
 } from '../src/lib/scanners/coverage.js';
@@ -36,6 +37,34 @@ describe('coverage gate scanner', () => {
 
     it('returns null for missing total field', () => {
       expect(parseIstanbulSummary(JSON.stringify({ something: {} }))).toBeNull();
+    });
+  });
+
+  describe('parseLcov', () => {
+    it('extracts line coverage from lcov format', () => {
+      const lcov = [
+        'SF:src/index.ts',
+        'LF:100',
+        'LH:85',
+        'end_of_record',
+        'SF:src/util.ts',
+        'LF:50',
+        'LH:40',
+        'end_of_record',
+      ].join('\n');
+
+      const result = parseLcov(lcov);
+      expect(result).toEqual({
+        lines: 83.3,
+        statements: 83.3,
+        functions: 83.3,
+        branches: 83.3,
+      });
+    });
+
+    it('returns null for empty lcov content', () => {
+      expect(parseLcov('')).toBeNull();
+      expect(parseLcov('SF:src/index.ts\nend_of_record')).toBeNull();
     });
   });
 
@@ -99,6 +128,25 @@ describe('coverage gate scanner', () => {
 
       expect(result.ok).toBe(true);
       expect(result.report_path).toContain('custom');
+    });
+
+    it('parses lcov.info when found in coverage directory', () => {
+      const dir = tempDir();
+      mkdirSync(join(dir, 'coverage'), { recursive: true });
+      writeFileSync(
+        join(dir, 'coverage', 'lcov.info'),
+        'SF:src/index.ts\nLF:100\nLH:90\nend_of_record\n',
+      );
+
+      const result = checkCoverage(dir, { unit: 80 });
+
+      expect(result.ok).toBe(true);
+      expect(result.format).toBe('lcov');
+      expect(result.coverage.unit).toMatchObject({
+        value: 90,
+        target: 80,
+        ok: true,
+      });
     });
   });
 });

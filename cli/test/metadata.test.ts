@@ -57,7 +57,7 @@ describe("release metadata", () => {
   test("documents the scenarios artifact exception to Runtime-owned JSON", () => {
     const readme = readText("README.md");
     const openCodeInstall = readText(".opencode/INSTALL.md");
-    const usingForge = readText("skills/using-forge/SKILL.md");
+    const usingForge = readText("skills/forge_using-forge/SKILL.md");
     const docs = `${readme}\n${openCodeInstall}\n${usingForge}`;
 
     expect(docs).toContain("Runtime-owned `.forge/*.json`");

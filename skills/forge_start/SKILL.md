@@ -69,11 +69,14 @@ Output `▸ Checking environment…`, then run:
 $FORGE_CMD doctor
 ```
 
-The `doctor` command performs critical checks including:
-- `cli`, `node`, `config`, `git`
-- `gitnexus` (CRITICAL — required dependency)
+The `doctor` command performs the following checks:
+- `cli`, `node` — CRITICAL (runtime)
+- `gitnexus` — CRITICAL (required dependency)
+- `config` — non-critical (`forge init` will create it in Step 2)
+- `progress` — non-critical
+- `git` — non-critical
 
-If `ok: false` and any critical check failed, output:
+If `ok: false` and any **critical** check failed, output:
 
 ```
 ✘ doctor: <failed checks summary>
@@ -86,7 +89,8 @@ For gitnexus specifically:
    Install: npm install -g gitnexus
 ```
 
-STOP. Do not proceed without all critical checks passing.
+STOP only on critical failures. A missing `config` is expected for first-time
+use and does not block — proceed to Step 2 (init will create it).
 
 ## Step 2: forge status / init
 
@@ -186,10 +190,10 @@ Output the full feature lifecycle Checklist:
 │  ☐ Full test suite (all profiles)                           │
 │  ☐ Coverage threshold check                                 │
 │  ☐ Build verification                                       │
-│  ☐ gstack basic tests (requires gstack)                     │
+│  ☐ gstack basic tests (not yet implemented)                  │
 │  ☐ Security scan (configurable)                             │
 │  ☐ Dependency audit (configurable)                          │
-│  ☐ E2E / visual / performance (requires gstack, optional)   │
+│  ☐ E2E / visual / performance (not yet implemented)          │
 │                                                             │
 │  /done                                                      │
 │  ☐ Phase finish                                             │

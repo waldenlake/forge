@@ -6,8 +6,12 @@ description: Phase 4 — full verification + failure routing + phase:verify-pass
 # /verify
 
 Drive the Forge workflow through Phase 4 — full verification (tests +
-coverage + build + gstack basic + security + dependency audit + optional
-gstack E2E/visual/perf), failure routing, and `phase:verify-pass`.
+coverage + build + security + dependency audit), failure routing, and
+`phase:verify-pass`.
+
+> **Note:** gstack integration (basic tests, E2E, visual regression,
+> performance) is not yet implemented. All gstack-related steps are
+> automatically skipped.
 
 This skill owns the verify phase end-to-end. It must finish with the feature
 in `verified` state (or stop with an explicit blocker).
@@ -53,7 +57,27 @@ Follow `skills/SKILL-UX.md`.
 
 ## Flow
 
-### Step 1: Run forge verify --coverage
+### Step 1: Display verification plan
+
+Before running the full verification, output `▸ Verification plan:` and run:
+
+```bash
+$FORGE_CMD verify --plan
+```
+
+Display a one-line summary so the user knows what's about to run:
+
+```
+▸ Verification plan:
+  will run:  tests, build, security_scan, dependency_audit
+  skipped:   gstack-basic (not yet implemented), e2e (not yet implemented), visual_regression (not yet implemented), performance (not yet implemented)
+  thresholds: coverage_unit=80, security=HIGH, retry=3
+```
+
+This is informational only — do not prompt. To change the plan, the user
+runs `$FORGE_CMD config:verify --<flag>` themselves and re-invokes `/verify`.
+
+### Step 2: Run forge verify --coverage
 
 Output `▸ Verifying…`, then run:
 
@@ -61,9 +85,11 @@ Output `▸ Verifying…`, then run:
 $FORGE_CMD verify --coverage
 ```
 
-This runs the full Phase 5 pipeline: tests + build + gstack-basic +
-security_scan + dependency_audit + optional E2E/visual/perf — driven by
-`config.verify.*` flags.
+This runs the full Phase 5 pipeline: tests + build +
+security_scan + dependency_audit — driven by `config.verify.*` flags.
+
+> gstack steps (basic, E2E, visual, performance) are not yet implemented
+> and will appear as `skipped` in the verification report.
 
 The response is a verification report with:
 - `ok`, `status`
@@ -72,9 +98,9 @@ The response is a verification report with:
   (`security` > `infra` > `implementation` > `null`).
 - `attempts`: cumulative attempt counter.
 
-### Step 2: Branch on result
+### Step 3: Branch on result
 
-#### 2a. ok: true → promote
+#### 3a. ok: true → promote
 
 Output `▸ Promoting to verified…`, then run:
 
@@ -94,7 +120,7 @@ On success, do NOT stop — immediately invoke the `/done` skill.
 
 Output `▸ Advancing to done…` then invoke `/done`.
 
-#### 2b. ok: false, failure_class === "security"
+#### 3b. ok: false, failure_class === "security"
 
 A security-class failure (CVE / dependency audit) is a discrete, isolatable
 bug. Route to `/bugfix`:
@@ -107,7 +133,7 @@ bug. Route to `/bugfix`:
 
 STOP. After `/bugfix` completes, the user should run `/verify` again.
 
-#### 2c. ok: false, failure_class === "infra"
+#### 3c. ok: false, failure_class === "infra"
 
 Build / environment / tooling failure. Surface verbatim and STOP — these
 are not subagent-fixable:
@@ -116,7 +142,7 @@ are not subagent-fixable:
 ✘  verify: infra-class failure — <stderr excerpt>
 ```
 
-#### 2d. ok: false, failure_class === "implementation"
+#### 3d. ok: false, failure_class === "implementation"
 
 Test / coverage / E2E / visual / perf failure. Re-enter the executing
 phase via subagent. The CLI has already incremented

@@ -34,6 +34,7 @@ import {
 
 type VerifyCommandOptions = {
   coverage?: boolean;
+  plan?: boolean;
 };
 
 type FailureClass = "implementation" | "security" | "infra" | null;
@@ -169,14 +170,130 @@ function listScanTargets(cwd: string): string[] {
     .map((rel) => join(cwd, rel));
 }
 
+type VerifyPlanEntry = { name: string; reason?: string };
+
+type VerifyPlan = {
+  ok: true;
+  plan: {
+    will_run: VerifyPlanEntry[];
+    will_skip: VerifyPlanEntry[];
+    thresholds: {
+      coverage_unit: number | null;
+      coverage_integration: number | null;
+      coverage_e2e: string | null;
+      security_severity: string;
+      license_allowlist: string[];
+      verify_retry_limit: number;
+    };
+  };
+};
+
+/**
+ * Compute the verification plan without executing any step. This is a pure
+ * read-only inspection of config + environment so users (and the /planning
+ * checkpoint) can see exactly what /verify will do before it runs.
+ */
+function computeVerifyPlan(cwd: string, config: ForgeConfig): VerifyPlan {
+  const verifyCfg = verifyConfig(config);
+  const willRun: VerifyPlanEntry[] = [];
+  const willSkip: VerifyPlanEntry[] = [];
+
+  // Required steps: tests + build always run.
+  willRun.push({ name: "tests" });
+  const buildCommand = detectBuildCommand(cwd);
+  if (buildCommand) {
+    willRun.push({ name: "build" });
+  } else {
+    willSkip.push({ name: "build", reason: "no build command detected" });
+  }
+
+  // gstack-basic
+  if (isEnabled(verifyCfg, "gstack_basic", true)) {
+    if (!config.gstack_installed) {
+      willSkip.push({ name: "gstack-basic", reason: "gstack_installed is false" });
+    } else if (!isGstackInstalled()) {
+      willSkip.push({ name: "gstack-basic", reason: "gstack not on PATH" });
+    } else {
+      willRun.push({ name: "gstack-basic" });
+    }
+  } else {
+    willSkip.push({ name: "gstack-basic", reason: "verify.gstack_basic disabled" });
+  }
+
+  // security_scan
+  if (isEnabled(verifyCfg, "security_scan", true)) {
+    willRun.push({ name: "security_scan" });
+  } else {
+    willSkip.push({ name: "security_scan", reason: "verify.security_scan disabled" });
+  }
+
+  // dependency_audit
+  if (isEnabled(verifyCfg, "dependency_audit", true)) {
+    willRun.push({ name: "dependency_audit" });
+  } else {
+    willSkip.push({ name: "dependency_audit", reason: "verify.dependency_audit disabled" });
+  }
+
+  // Optional gstack steps (opt-in)
+  const optionalGstack: Array<[
+    keyof NonNullable<ForgeConfig["verify"]>,
+    string,
+  ]> = [
+    ["e2e", "e2e"],
+    ["visual_regression", "visual_regression"],
+    ["performance", "performance"],
+  ];
+  for (const [key, name] of optionalGstack) {
+    if (!isEnabled(verifyCfg, key, false)) {
+      willSkip.push({ name, reason: `verify.${key} disabled (opt-in)` });
+      continue;
+    }
+    if (!isGstackInstalled()) {
+      willSkip.push({ name, reason: "gstack not on PATH" });
+      continue;
+    }
+    willRun.push({ name });
+  }
+
+  return {
+    ok: true,
+    plan: {
+      will_run: willRun,
+      will_skip: willSkip,
+      thresholds: {
+        coverage_unit: config.test_coverage?.unit ?? null,
+        coverage_integration: config.test_coverage?.integration ?? null,
+        coverage_e2e: config.test_coverage?.e2e ?? null,
+        security_severity:
+          config.guards["security-scan"]?.severity_threshold ?? "HIGH",
+        license_allowlist:
+          config.guards["dependency-audit"]?.license_allowlist ?? [
+            "MIT",
+            "Apache-2.0",
+            "ISC",
+          ],
+        verify_retry_limit: VERIFY_RETRY_LIMIT,
+      },
+    },
+  };
+}
+
 export function registerVerifyCommand(program: Command): void {
   program
     .command("verify")
     .option("--coverage", "run coverage command when configured")
+    .option("--plan", "print verification plan without executing")
     .action((options: VerifyCommandOptions) => {
       const cwd = process.cwd();
-      const startedAt = Date.now();
       const config = readConfig(cwd);
+
+      // Dry-run: show plan and exit. Does not require execution_complete state.
+      if (options.plan) {
+        writeJson(computeVerifyPlan(cwd, config));
+        return;
+      }
+
+      const startedAt = Date.now();
       const progress = readProgress(cwd);
       const profileNames = Object.keys(config.test_profiles);
       const missingProfile = unknownProfile(config, profileNames);

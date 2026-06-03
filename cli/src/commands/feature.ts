@@ -23,13 +23,19 @@ type FeatureStartOptions = {
 const WORKFLOW_RULES_BLOCK = `**Workflow Rules**
 MANDATORY — applies until this feature is complete.
 
-CURRENT PHASE drives next command:
-  planning            → /planning
-  executing           → /executing
-  execution_complete  → /verify
-  verified            → /done
+NEXT-ACTION LOOP (the single workflow control flow):
+  1. Run: $FORGE_CMD run-loop
+  2. Read the JSON output. Dispatch by action:
+     - invoke-skill → invoke the skill with args; if record exists, run
+                      guard:record after the skill returns; then go to 1
+     - wait-human   → output reason + recovery; STOP
+     - ok:false     → output error + recovery; STOP
+  3. Obey the reminder field on every step. Do not improvise.
 
-PER-TASK in /executing follow this exact sequence:
+  The CLI internally handles all deterministic steps (guard:run, guard:record,
+  phase:complete, etc.) — you never see or run them yourself.
+
+PER-TASK (inside /executing, invoked by run-loop with task_id):
   1. $FORGE_CMD task:start --id <id>
   2. Output exactly: "→ Subagent: task <id> — <title>"
      Then use the superpowers:subagent-driven-development skill.
@@ -41,7 +47,7 @@ PER-TASK in /executing follow this exact sequence:
      If the skill is unavailable: output "Subagent unavailable — halting." and STOP.
   3. $FORGE_CMD task:done --id <id>
      (CLI auto-runs gitnexus index --update; failure recorded to guard_history)
-  4. Handle guards if triggered (forge guard:run / guard:record), then continue.
+  4. Return control to the run-loop (do NOT select the next task).
 
 IMPLEMENTER SUBAGENT TDD DISCIPLINE (strict RED → GREEN → REFACTOR):
   The implementer subagent MUST follow this exact order. No exceptions.
@@ -70,11 +76,11 @@ YOU ARE VIOLATING THESE RULES if you:
   - Skip any of the three sub-stages, including for "simple" tasks.
   - Call task:done before all three sub-stages complete.
   - Edit .forge/*.json directly (CLI is the only writer).
-  - Advance phase without the required CLI command.
+  - Select the next task yourself instead of letting run-loop decide.
+  - Improvise workflow routing instead of obeying run-loop output.
 
-LOOP: repeat steps 1–4 for every pending task without pausing between tasks.
-STOP only when: forge returns ok:false, guard fails, holistic review
-exhausts retries, holistic review STOPs for human, or all phases complete.
+STOP only when: run-loop returns wait-human, run-loop returns ok:false,
+guard fails, subagent is unavailable, or all phases complete.
 When forge CLI returns ok:false: report the error exactly and stop immediately.`;
 
 function writeJson(payload: unknown): void {

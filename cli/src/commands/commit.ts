@@ -123,7 +123,7 @@ export function registerCommitCommand(program: Command): void {
         return;
       }
 
-      const add = git(cwd, ["add", "-A"]);
+      const add = git(cwd, ["add", "-u"]);
       if (!add.ok) {
         fail(add.stderr.trim() || "git add failed");
         return;

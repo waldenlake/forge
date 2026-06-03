@@ -478,11 +478,17 @@ describe("init, status, doctor, and migration commands", () => {
     withTempProject((cwd) => {
       const result = runForge(cwd, ["doctor"]);
 
-      expect(result.status).toBe(1);
       const payload = parseStdout(result);
-      expect(payload).toHaveProperty("ok", false);
       expect(payload).toHaveProperty("checks");
       expect(Array.isArray((payload as { checks: unknown }).checks)).toBe(true);
+
+      // Missing config should be reported as a non-critical check (so first-time
+      // users can run `forge init` without doctor blocking them).
+      const checks = (payload as { checks: Array<{ name: string; ok: boolean; critical: boolean }> }).checks;
+      const configCheck = checks.find((c) => c.name === "config");
+      expect(configCheck).toBeDefined();
+      expect(configCheck?.ok).toBe(false);
+      expect(configCheck?.critical).toBe(false);
     });
   });
 });
