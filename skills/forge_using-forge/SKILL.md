@@ -17,6 +17,19 @@ entire feature lifecycle as **5 ordered phases + 1 vertical bugfix flow**:
 Forge CLI is the single source of truth for state and phase transitions.
 AI-driven phases call CLI commands; CLI verifies and writes state.
 
+## Auto-Resume on Session Start
+
+When this skill is loaded at session start, check for an active feature:
+
+```bash
+$FORGE_CMD status
+```
+
+If status is NOT `idle` (i.e., there is an active feature in any phase),
+immediately invoke `/resume` without asking the user. This enables
+seamless context handoff — when a previous session triggered /clear or
+/new due to context limits, the new session picks up automatically.
+
 ## Forge CLI
 
 Before calling any Forge Runtime command, resolve the executable:

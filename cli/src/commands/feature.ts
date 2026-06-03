@@ -91,11 +91,12 @@ CONTEXT BUDGET:
   or noticing that the system has compressed earlier messages.
   If context is insufficient:
     1. Run $FORGE_CMD memory:set-feature (save handoff state)
-    2. Output exactly (pick the line matching the current platform):
-       ⚠ Context limit — start a new session, then run /resume
-       Claude Code: /clear then /resume
-       OpenCode/Codex: /new then /resume
-    3. STOP. No further explanation.`;
+    2. Execute the platform new-session command directly (do NOT just
+       output it — actually run it):
+       - Claude Code: /clear
+       - OpenCode/Codex: /new
+       The new session will auto-detect the active feature and run
+       /resume automatically. No user intervention needed.`;
 
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
