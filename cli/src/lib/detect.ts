@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { accessSync, constants, existsSync, readFileSync, readdirSync } from "node:fs";
 import { delimiter, join, relative, sep } from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -300,18 +301,34 @@ export function detectMonorepoProfiles(cwd: string): MonorepoDetectResult {
 }
 
 export function detectOptionalTool(name: string): boolean {
+  // Strategy 1: scan PATH directories (fast, no subprocess)
   const pathValue = process.env.PATH ?? "";
-  const extensions = process.platform === "win32" ? ["", ".cmd", ".exe"] : [""];
+  const extensions = process.platform === "win32" ? ["", ".cmd", ".exe", ".bat"] : [""];
 
   for (const directory of pathValue.split(delimiter)) {
     for (const extension of extensions) {
       try {
-        accessSync(join(directory, `${name}${extension}`), constants.X_OK);
+        accessSync(join(directory, `${name}${extension}`), constants.R_OK);
         return true;
       } catch {
         // Continue checking the rest of PATH.
       }
     }
+  }
+
+  // Strategy 2: try spawning the command directly (catches tools installed
+  // in locations not on the current PATH, e.g. when OpenCode or other
+  // platforms launch subprocesses with a restricted PATH)
+  try {
+    const result = spawnSync(name, ["--version"], {
+      encoding: "utf8",
+      timeout: 5_000,
+      stdio: "pipe",
+      windowsHide: true,
+    });
+    if (result.status === 0) return true;
+  } catch {
+    // Not found
   }
 
   return false;
