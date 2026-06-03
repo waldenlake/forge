@@ -98,7 +98,8 @@ describe("Forge skill contracts", () => {
       // ("never edit `.forge/*.json` directly").
       const ok =
         content.includes(stateMutationProhibition) ||
-        /never edit `\.forge\/\*\.json` directly/.test(content);
+        /never edit `\.forge\/\*\.json` directly/i.test(content) ||
+        /do not edit `\.forge\/\*\.json` directly/i.test(content);
       expect(ok, `${file} must prohibit direct .forge/*.json edits`).toBe(true);
     },
   );

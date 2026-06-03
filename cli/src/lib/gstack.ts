@@ -19,6 +19,7 @@ export function gstackVersion(): string | null {
   const result = spawnSync("gstack", ["--version"], {
     encoding: "utf8",
     timeout: 10_000,
+    shell: true,
   });
 
   if (result.status !== 0) {
@@ -40,6 +41,7 @@ function runGstack(cwd: string, args: string[]): GstackResult {
     cwd,
     encoding: "utf8",
     timeout: 120_000,
+    shell: true,
   });
 
   const status = result.status ?? 1;

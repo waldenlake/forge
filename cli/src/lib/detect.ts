@@ -325,6 +325,7 @@ export function detectOptionalTool(name: string): boolean {
       timeout: 5_000,
       stdio: "pipe",
       windowsHide: true,
+      shell: true,
     });
     if (result.status === 0) return true;
   } catch {

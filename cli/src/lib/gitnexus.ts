@@ -19,6 +19,7 @@ export function gitNexusVersion(): string | null {
   const result = spawnSync("gitnexus", ["--version"], {
     encoding: "utf8",
     timeout: 10_000,
+    shell: true,
   });
 
   if (result.status !== 0) {
@@ -54,6 +55,7 @@ function runGitNexus(cwd: string, args: string[]): GitNexusResult {
     cwd,
     encoding: "utf8",
     timeout: 60_000,
+    shell: true,
   });
 
   const status = result.status ?? 1;
