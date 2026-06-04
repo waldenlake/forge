@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -400,6 +401,76 @@ describe("git, audit, and reset commands", () => {
         error: "forge project state not found",
       });
       expect(existsSync(join(cwd, ".forge", "progress.json"))).toBe(false);
+    });
+  });
+
+  test("reset --backup archives .forge/reports/ contents and clears the directory", () => {
+    withTempGitRepo((cwd) => {
+      writeProgress(cwd, executingProgress());
+
+      // Seed some report files
+      const reportsDir = join(cwd, ".forge", "reports");
+      mkdirSync(reportsDir, { recursive: true });
+      writeFileSync(
+        join(reportsDir, "test-2026-06-04T15-10-22.log"),
+        "pytest output line 1\npytest output line 2\n",
+        "utf8",
+      );
+      writeFileSync(
+        join(reportsDir, "verify-2026-06-04T16-00-00.json"),
+        '{"ok":true,"checks":[]}\n',
+        "utf8",
+      );
+
+      const result = runForge(cwd, ["reset", "--backup"]);
+
+      expect(result.status).toBe(0);
+      const payload = parseStdout(result);
+      expect(payload.ok).toBe(true);
+      expect(payload.status).toBe("idle");
+
+      // The backup must include the seeded reports
+      const backupReportsDir = join(
+        cwd,
+        ".forge",
+        "backups",
+        payload.reports_backup_dir,
+      );
+      expect(existsSync(backupReportsDir)).toBe(true);
+      expect(
+        readFileSync(
+          join(backupReportsDir, "test-2026-06-04T15-10-22.log"),
+          "utf8",
+        ),
+      ).toContain("pytest output line 1");
+      expect(
+        readFileSync(
+          join(backupReportsDir, "verify-2026-06-04T16-00-00.json"),
+          "utf8",
+        ),
+      ).toContain('"ok":true');
+
+      // The original reports directory must be removed (or empty)
+      const stillExists = existsSync(reportsDir);
+      if (stillExists) {
+        // If the impl chose to keep the dir, it must be empty
+        const remaining = readdirSync(reportsDir);
+        expect(remaining.length).toBe(0);
+      }
+    });
+  });
+
+  test("reset --backup is a no-op for reports when .forge/reports/ does not exist", () => {
+    withTempGitRepo((cwd) => {
+      writeProgress(cwd, executingProgress());
+
+      const result = runForge(cwd, ["reset", "--backup"]);
+
+      expect(result.status).toBe(0);
+      const payload = parseStdout(result);
+      expect(payload.ok).toBe(true);
+      // No reports_backup_dir field when no reports exist
+      expect(payload.reports_backup_dir).toBeUndefined();
     });
   });
 });

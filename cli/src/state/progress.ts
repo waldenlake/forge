@@ -108,6 +108,10 @@ export function progressPath(cwd: string): string {
   return join(cwd, ".forge", "progress.json");
 }
 
+export function reportsPath(cwd: string): string {
+  return join(cwd, ".forge", "reports");
+}
+
 export function assertProgress(
   cwd: string,
   value: unknown,
