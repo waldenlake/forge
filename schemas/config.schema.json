@@ -124,6 +124,38 @@
           "properties": { "enabled": { "type": "boolean" } }
         }
       }
+    },
+    "context_management": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Context management plugin configuration. Controls automatic session handoff and compact suggestions.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Master switch: false disables all context management intervention."
+        },
+        "threshold_pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Context usage percentage above which handoff/compact is advised (0-1)."
+        },
+        "strategy": {
+          "type": "string",
+          "enum": ["in-place-restart", "new-window", "prompt-compact", "off"],
+          "description": "Preferred context recovery strategy."
+        },
+        "fallback": {
+          "type": "string",
+          "enum": ["in-place-restart", "new-window", "prompt-compact", "off"],
+          "description": "Fallback strategy when preferred is unavailable."
+        },
+        "min_tasks_between_handoff": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum tasks completed since last handoff before allowing another (prevents loops)."
+        }
+      }
     }
   }
 }

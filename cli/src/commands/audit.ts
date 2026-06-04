@@ -1,6 +1,11 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import type { Command } from "commander";
 import { findTaskCommit, isGitRepo } from "../lib/git.js";
+import {
+  checkHandoffDrift,
+  handoffAbsolutePath,
+  parseHandoff,
+} from "../lib/handoff.js";
 import { progressPath, readProgress } from "../state/progress.js";
 
 function writeJson(payload: unknown): void {
@@ -64,6 +69,24 @@ export function registerAuditCommand(program: Command): void {
         ...(guard.notes ? { notes: guard.notes } : {}),
       }));
 
+    // Handoff drift: compare .forge/handoff.md (if present) against the live
+    // progress.json. Missing handoff.md is NOT drift — the file is an
+    // optional cache that hooks rebuild on demand. Stale field values ARE
+    // drift; we surface them so /audit users can run `forge handoff:get`
+    // (rebuilds from progress.json) to recover.
+    const handoffPath = handoffAbsolutePath(cwd);
+    const handoffDriftEntries = existsSync(handoffPath)
+      ? checkHandoffDrift(progress, parseHandoff(readFileSync(handoffPath, "utf8"))).map(
+          (drift) => ({
+            type: "handoff_drift",
+            field: drift.field,
+            expected: drift.expected,
+            actual: drift.actual,
+            recovery: "forge handoff:get  # rebuilds .forge/handoff.md from progress.json",
+          }),
+        )
+      : [];
+
     writeJson({
       ok: true,
       progress: {
@@ -92,6 +115,7 @@ export function registerAuditCommand(program: Command): void {
       inconsistencies: [
         ...missingCommitInconsistencies,
         ...guardInconsistencies,
+        ...handoffDriftEntries,
       ],
     });
   });

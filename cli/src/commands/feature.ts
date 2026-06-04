@@ -9,6 +9,7 @@ import {
   writeProgress,
 } from "../state/progress.js";
 import {
+  ensureCompactInstructions,
   ensureForgeSection,
   memoryPath,
   replaceWorkflowRules,
@@ -136,7 +137,8 @@ export function registerFeatureCommand(program: Command): void {
         const file = memoryPath(cwd, config);
         const raw = existsSync(file) ? readFileSync(file, "utf8") : "";
         const withForge = ensureForgeSection(raw);
-        const updated = replaceWorkflowRules(withForge, WORKFLOW_RULES_BLOCK);
+        const withCompact = ensureCompactInstructions(withForge);
+        const updated = replaceWorkflowRules(withCompact, WORKFLOW_RULES_BLOCK);
         writeAndVerify(file, updated, "**Workflow Rules**");
       } catch {
         // Non-fatal

@@ -23,6 +23,25 @@ export type VerifyConfig = {
   performance?: { enabled: boolean };
 };
 
+export type ContextManagementStrategy =
+  | "in-place-restart"
+  | "new-window"
+  | "prompt-compact"
+  | "off";
+
+export type ContextManagementConfig = {
+  /** Master switch: false disables all context management intervention. */
+  enabled?: boolean;
+  /** Context usage percentage above which handoff/compact is advised (0-1). */
+  threshold_pct?: number;
+  /** Preferred context recovery strategy. */
+  strategy?: ContextManagementStrategy;
+  /** Fallback strategy when preferred is unavailable. */
+  fallback?: ContextManagementStrategy;
+  /** Minimum tasks completed since last handoff before allowing another. */
+  min_tasks_between_handoff?: number;
+};
+
 export type ForgeConfig = {
   version: "2.0";
   forge_cli_version: string;
@@ -53,13 +72,15 @@ export type ForgeConfig = {
     }
   >;
   verify?: VerifyConfig;
+  context_management?: ContextManagementConfig;
 };
 
 type DefaultConfigInput = Partial<
-  Omit<ForgeConfig, "version" | "forge_cli_version" | "guards" | "verify">
+  Omit<ForgeConfig, "version" | "forge_cli_version" | "guards" | "verify" | "context_management">
 > & {
   guards?: ForgeConfig["guards"];
   verify?: VerifyConfig;
+  context_management?: ContextManagementConfig;
 };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -155,6 +176,7 @@ export function defaultConfig(input: DefaultConfigInput = {}): ForgeConfig {
       visual_regression: { enabled: false },
       performance: { enabled: false },
     },
+    ...(input.context_management ? { context_management: input.context_management } : {}),
   };
 }
 

@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import { triggeredGuards } from "../lib/guard.js";
 import { findTaskCommit, isGitRepo } from "../lib/git.js";
 import { gitNexusUpdate, isGitNexusInstalled } from "../lib/gitnexus.js";
+import { writeHandoff } from "../lib/handoff.js";
 import { readConfig } from "../state/config.js";
 import {
   type ForgeProgress,
@@ -187,6 +188,22 @@ export function registerTaskCommand(program: Command): void {
       );
 
       writeProgress(cwd, updatedProgress);
+
+      // Maintain .forge/handoff.md as the canonical "where am I, what's next"
+      // seed for compaction / SessionStart auto-resume. Writing it here
+      // (after writeProgress) keeps progress.json as the source of truth and
+      // handoff.md as a derived view.
+      //
+      // Failure must NOT block task:done — handoff.md is an optimisation; the
+      // authoritative state is progress.json. We record the failure as a
+      // skipped guard entry so /audit can surface it later.
+      let handoffWarning: string | null = null;
+      try {
+        writeHandoff(cwd, updatedProgress);
+      } catch (error) {
+        handoffWarning = (error as Error).message.slice(0, 200);
+      }
+
       writeJson({
         ok: true,
         task: updatedTask,
@@ -194,6 +211,7 @@ export function registerTaskCommand(program: Command): void {
         guard_triggered: guards.length > 0,
         guards,
         guard_type: guards[0]?.type ?? null,
+        ...(handoffWarning ? { handoff_warning: handoffWarning } : {}),
       });
 
       // GitNexus incremental index after each task completion.

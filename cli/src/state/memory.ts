@@ -13,6 +13,21 @@ const nextHeading = /^## [^\r\n]+[^\S\r\n]*$/m;
 const currentFeature = /^\*\*Current Feature:?\*\*[^\S\r\n]*(?:\r?\n|$)/m;
 const completedFeatures = /^\*\*Completed Features:?\*\*[^\S\r\n]*(?:\r?\n|$)/m;
 const workflowRules = /^\*\*Workflow Rules:?\*\*[^\S\r\n]*(?:\r?\n|$)/m;
+const compactInstructionsHeading = /^## Compact Instructions[^\S\r\n]*(?:\r?\n|$)/m;
+
+/**
+ * Compact Instructions block template. Injected as a top-level `## Compact
+ * Instructions` heading in the memory file by `feature:start`. This heading
+ * sits at the same level as `## Forge` so compaction/summarization engines
+ * treat it as a preserve-worthy section in its own right.
+ */
+export const COMPACT_INSTRUCTIONS_BLOCK = `## Compact Instructions
+
+When this conversation is compacted, preserve / recover:
+1. Active forge feature & status (from .forge/progress.json)
+2. Read .forge/handoff.md for the next task
+3. After compaction, run /resume to reload canonical state
+`;
 
 export function memoryPath(cwd: string, config: ForgeConfig): string {
   return join(cwd, config.memory_file);
@@ -165,4 +180,46 @@ export function writeAndVerify(
   }
 
   return false;
+}
+
+/**
+ * Ensure the memory file has a `## Compact Instructions` section. If missing,
+ * injects it just before `## Forge` (so both top-level sections survive
+ * compaction). If already present, leaves it unchanged.
+ *
+ * Designed to be called from `feature:start` after `ensureForgeSection`.
+ */
+export function ensureCompactInstructions(content: string): string {
+  if (compactInstructionsHeading.test(content)) {
+    return content;
+  }
+
+  // Insert just before ## Forge heading if it exists, otherwise append.
+  const forgeMatch = forgeHeading.exec(content);
+  if (forgeMatch) {
+    const before = content.slice(0, forgeMatch.index);
+    const after = content.slice(forgeMatch.index);
+    const separator = before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+    return `${before}${separator}${COMPACT_INSTRUCTIONS_BLOCK}\n${after}`;
+  }
+
+  const separator = content.endsWith("\n") ? "\n" : "\n\n";
+  return `${content}${separator}${COMPACT_INSTRUCTIONS_BLOCK}`;
+}
+
+/**
+ * Remove the `## Compact Instructions` section from the memory file.
+ * Used by `phase:finish` to clean up after a feature completes.
+ */
+export function clearCompactInstructions(content: string): string {
+  const match = compactInstructionsHeading.exec(content);
+  if (!match) return content;
+
+  const before = content.slice(0, match.index);
+  const afterHeading = content.slice(match.index + match[0].length);
+  const next = nextHeading.exec(afterHeading);
+  const after = next ? afterHeading.slice(next.index) : "";
+
+  // Clean up trailing blank lines between sections
+  return (before.replace(/\n{3,}$/, "\n\n") + after).replace(/\n{3,}/g, "\n\n");
 }

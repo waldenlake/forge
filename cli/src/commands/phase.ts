@@ -4,6 +4,7 @@ import type { Command } from "commander";
 import { detectBuildCommand } from "../lib/buildCheck.js";
 import { isWorkingTreeClean } from "../lib/gitStatus.js";
 import { gitNexusUpdate, isGitNexusInstalled } from "../lib/gitnexus.js";
+import { archiveHandoff } from "../lib/handoff.js";
 import { runShellCommand } from "../lib/runner.js";
 import { readConfig, type ForgeConfig } from "../state/config.js";
 import {
@@ -261,6 +262,19 @@ export function registerPhaseCommand(program: Command): void {
       gitNexusUpdate(cwd);
     }
 
+    // Archive .forge/handoff.md alongside scenarios.json so a finished
+    // feature's full executing-phase context is preserved at one location.
+    // Failure to archive must never block phase:finish; the live signal is
+    // not load-bearing once the feature is done.
+    let handoffArchivedTo: string | null = null;
+    if (feature) {
+      try {
+        handoffArchivedTo = archiveHandoff(cwd, feature);
+      } catch {
+        handoffArchivedTo = null;
+      }
+    }
+
     writeProgress(cwd, idleProgress());
 
     try {
@@ -280,6 +294,7 @@ export function registerPhaseCommand(program: Command): void {
       from: "verified",
       to: "idle",
       feature,
+      ...(handoffArchivedTo ? { handoff_archived_to: handoffArchivedTo } : {}),
     });
   });
 }

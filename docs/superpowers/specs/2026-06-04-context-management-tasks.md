@@ -17,70 +17,70 @@
   - REFACTOR:抽出 reports 路径常量
   - **Validates:** Requirement 1.4
 
-- [ ] 2. forge test --summarize 命令(测试输出落盘)
+- [x] 2. forge test --summarize 命令(测试输出落盘)
   - 文件:`cli/src/commands/test.ts`、`cli/test/test-summarize.test.ts`
   - RED:测试运行 vitest/pytest profile 时,完整输出写入 `.forge/reports/test-<ISO>.log`,JSON 返回 `{passed, failed, skipped, duration_ms, failures[≤5], report_path}`,每个 failure 的 error 截断到 200 字符
   - GREEN:在现有 `test` 命令上加 `--summarize` 标志,使用 spawnSync 捕获 stdout/stderr,解析框架特定的输出格式提取计数,落盘 + JSON 返回
   - REFACTOR:把 framework-specific 解析(vitest/pytest/cargo)抽到 `lib/test-parsers/`
   - **Validates:** Requirements 1.1, 1.2
 
-- [~] 3. forge verify --summarize 命令
+- [x] 3. forge verify --summarize 命令
   - 文件:`cli/src/commands/verify.ts`
   - RED:测试 `verify --summarize` 把完整 report 写入 `.forge/reports/verify-<ISO>.json`,只返回结构化摘要
   - GREEN:扩展现有 verify 流水线,添加 summarize 标志,完整 verification report 落盘 + 摘要返回
   - REFACTOR:与 test --summarize 共用落盘 helper
   - **Validates:** Requirement 1.3
 
-- [~] 4. forge_executing SKILL.md 主线程禁令规则块
+- [x] 4. forge_executing SKILL.md 主线程禁令规则块
   - 文件:`skills/forge_executing/SKILL.md`
   - RED:N/A(纯文档)
   - GREEN:在 SKILL.md 顶部加 ⛔ 规则块,明确禁令(edit/write/patch、读源码、bash 跑测试)+ 允许工具白名单
   - REFACTOR:把 ⛔ 块格式抽到 SKILL-UX.md 作为公共模板
   - **Validates:** Requirements 1.5, 2.1, 2.2
 
-- [~] 5. subagent-driven-development 返回格式契约
+- [x] 5. subagent-driven-development 返回格式契约
   - 文件:`skills/forge_executing/SKILL.md`(D2 派发 prompt 拼接逻辑)
   - RED:测试派发给 subagent 的 prompt 末尾包含强制返回格式块(STATUS/COMMIT/REPORT/SUMMARY)
   - GREEN:在 D2 步骤的 prompt 模板末尾追加格式契约文本
   - REFACTOR:把契约模板抽成 skill 共享 fragment
   - **Validates:** Requirements 3.1, 3.2
 
-- [~] 6. 主线程对 subagent 返回的最小解析
+- [x] 6. 主线程对 subagent 返回的最小解析
   - 文件:`skills/forge_executing/SKILL.md`、`skills/SKILL-UX.md`
   - RED:N/A(skill 文档约束)
   - GREEN:在 SKILL.md 中明确"主线程只解析 4 个字段、不主动读 REPORT 路径"
   - REFACTOR:补到 SKILL-UX.md 作为通用规范
   - **Validates:** Requirements 3.3, 3.4
 
-- [~] 7. handoff.md schema + writer
+- [x] 7. handoff.md schema + writer
   - 文件:`cli/src/lib/handoff.ts`(新)、`cli/test/handoff.test.ts`
   - RED:测试 `writeHandoff(progress)` 生成的 markdown 包含全部必需字段(feature/status/tasks/last_task/next_task/spec_path/plan_path/generated_at/Resume command)
   - GREEN:实现 writer,从 progress.json 计算字段,完整重写 `.forge/handoff.md`(不追加)
   - REFACTOR:抽出字段提取逻辑
   - **Validates:** Requirements 4.1, 4.2
 
-- [~] 8. forge handoff:get 命令
+- [x] 8. forge handoff:get 命令
   - 文件:`cli/src/commands/handoff.ts`(新)、`cli/src/index.ts`
   - RED:测试 `forge handoff:get` 读取 handoff.md 内容并 echo;handoff.md 不存在时从 progress.json 实时重建后输出
   - GREEN:实现命令,注册到 program
   - REFACTOR:与 Task 7 共用 writer
   - **Validates:** Requirements 4.3, 4.4
 
-- [~] 9. task:done 自动维护 handoff
+- [x] 9. task:done 自动维护 handoff
   - 文件:`cli/src/commands/task.ts`、`cli/test/task-done-handoff.test.ts`
   - RED:测试 `task:done` 完成后 `.forge/handoff.md` 反映最新状态(完成的 task 出现在 last_task,下一个 pending 在 next_task)
   - GREEN:在 task:done 流程末尾调用 writeHandoff()
   - REFACTOR:错误处理——handoff 写失败不阻断 task:done,记录 warning
   - **Validates:** Requirement 4.1, 4.5(部分)
 
-- [~] 10. forge audit 扩展 handoff/progress 一致性检查
+- [x] 10. forge audit 扩展 handoff/progress 一致性检查
   - 文件:`cli/src/commands/audit.ts`、`cli/test/audit-handoff-drift.test.ts`
   - RED:测试 audit 在 handoff.md 字段与 progress.json 不一致时报告 drift,提供 `forge handoff:write` 重建建议
   - GREEN:在 audit 流程加入 handoff 一致性检查
   - REFACTOR:共用字段比对工具
   - **Validates:** Requirement 4.5
 
-- [~] 11. phase:finish 归档 handoff
+- [x] 11. phase:finish 归档 handoff
   - 文件:`cli/src/commands/phase.ts`
   - RED:测试 `phase:finish` 后 handoff.md 被清空或归档(与 scenarios.json 归档处理一致)
   - GREEN:在 phase:finish 流程加入 handoff 归档/清空
@@ -89,35 +89,35 @@
 
 ### Phase 2:跨平台 context 占用读取(插件决策基础)
 
-- [~] 12. OpenCode SQLite 读取适配器
+- [x] 12. OpenCode SQLite 读取适配器
   - 文件:`cli/src/lib/context-readers/opencode.ts`(新)、`cli/test/context-readers-opencode.test.ts`
   - RED:用一个 fixture SQLite(模拟 OpenCode opencode.db),测试读取最新 assistant message 返回 `tokens.input + tokens.cache.read`,且 cwd 匹配 `directory` 列定位 session
   - GREEN:用 bun:sqlite 或 better-sqlite3 实现读取,封装 `readOpencodeUsage(cwd, sessionId?)`
   - REFACTOR:抽出 SQL 常量
   - **Validates:** Requirements 10.2, 10.4
 
-- [~] 13. Claude Code JSONL 读取适配器
+- [x] 13. Claude Code JSONL 读取适配器
   - 文件:`cli/src/lib/context-readers/claude.ts`(新)、`cli/test/context-readers-claude.test.ts`
   - RED:用 fixture jsonl(`~/.claude/projects/<encoded>/<session>.jsonl`),测试读取最后一条含 usage 的 assistant 行,返回 `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`,cwd 编码后匹配项目目录,取最新修改 jsonl
   - GREEN:实现 `readClaudeUsage(cwd, sessionId?)`,反向流式读取 jsonl
   - REFACTOR:cwd-to-encoded-path 工具单独抽出
   - **Validates:** Requirements 10.3, 10.4
 
-- [~] 14. 平台检测 + 终端复用器探测
+- [x] 14. 平台检测 + 终端复用器探测
   - 文件:`cli/src/lib/platform-detect.ts`(新)、`cli/test/platform-detect.test.ts`
   - RED:测试探测平台(OpenCode/Claude Code/Codex/unknown)和终端(tmux via $TMUX、wezterm via 命令存在、wt.exe via $WT_SESSION、bare)
   - GREEN:实现两个函数 `detectPlatform()` 和 `detectTerminalCapability()`,后者返回 `{kind: "tmux"|"wezterm"|"wt"|"bare", supports_in_place: boolean}`
   - REFACTOR:整理环境变量优先级
   - **Validates:** Requirements 5.7, 10.1
 
-- [~] 15. forge context:usage 命令
+- [x] 15. forge context:usage 命令
   - 文件:`cli/src/commands/context.ts`(新)、`cli/test/context-usage.test.ts`
   - RED:测试 `forge context:usage --json` 在 OpenCode/Claude Code 各返回正确字段(`platform/session_id/total_context/window_size/usage_pct/source/last_forge_event/fresh_session_advised/method`);Codex 返回 `ok:false, reason:"unsupported_platform"`
   - GREEN:整合 Task 12-14,根据平台分派读取,根据终端能力决定 `fresh_session_advised` 与 `method`
   - REFACTOR:阈值判断从 config 读
   - **Validates:** Requirements 10.1, 10.5, 10.6, 10.7
 
-- [~] 16. 配置段 context_management 加入 schema
+- [x] 16. 配置段 context_management 加入 schema
   - 文件:`schemas/config.schema.json`、`cli/src/state/config.ts`
   - RED:测试 config.json 含 `context_management: {enabled, threshold_pct, strategy, fallback, min_tasks_between_handoff}` 时通过 schema 校验,缺失字段使用默认值
   - GREEN:更新 schema,扩展 ForgeConfig 类型,defaultConfig 提供合理默认
@@ -126,7 +126,7 @@
 
 ### Phase 3:种子注入(Layer 2)
 
-- [~] 17. feature:start 注入 Compact Instructions 到 memory file
+- [x] 17. feature:start 注入 Compact Instructions 到 memory file
   - 文件:`cli/src/state/memory.ts`、`cli/src/commands/feature.ts`
   - RED:测试 `feature:start` 在 CLAUDE.md/AGENTS.md 注入 `## Compact Instructions` 块(三条:读 progress.json / 读 handoff.md / 压缩后 /resume)
   - GREEN:扩展 memory writer,在 WORKFLOW_RULES 旁加 Compact Instructions 段

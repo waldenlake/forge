@@ -5,6 +5,36 @@ description: Phase 3 — Single-task TDD via subagent + 3-layer review, or deleg
 
 # /executing
 
+## ⛔ Main-thread hard constraints
+
+The main thread is a **state machine, not a worker**. Implementation work
+belongs to the implementer subagent; reading and testing belong to the
+reviewer subagents and CLI. Violating these constraints inflates main-thread
+context and breaks the fixed-window guarantee.
+
+During a task (between `task:start` and `task:done`), the main thread
+**MUST NOT**:
+
+- Use `edit` / `write` / `patch` — implementation belongs to the implementer subagent.
+- Use `read` to open source code, tests, or full spec/plan files — pass paths
+  to the subagent and let it read them in its own context window.
+- Use `bash` to run tests, builds, linters, or coverage commands — go through
+  `forge test --summarize` / `forge verify --summarize` instead, so output is
+  captured to `.forge/reports/` and only a JSON summary returns to context.
+
+The main thread **MAY**:
+
+- Call `forge` CLI commands (status, task:*, guard:*, test --summarize, verify --summarize).
+- Dispatch and coordinate subagents.
+- Render summary output to the user using SKILL-UX templates.
+- Use `read` only for `.forge/*.json` state files (they are small) when a
+  CLI field is not enough.
+
+These rules apply to every D-step below. If a step seems to require reading
+source or running a test, that step must be delegated to a subagent.
+
+---
+
 Execute a single task or a delegated guard review, then return control to
 the `/next` loop. This skill does NOT contain a per-task loop, guard-decision
 logic, or phase-complete logic — those are owned by `forge next-action`.
@@ -110,6 +140,28 @@ all three pass.
 | ① Implementer | TDD: RED → GREEN → REFACTOR; commit with `[forge task-<id>]` tag |
 | ② Spec Compliance Reviewer | `superpowers:requesting-code-review` (spec-reviewer-prompt) |
 | ③ Code Quality Reviewer | `superpowers:requesting-code-review` (code-quality-reviewer-prompt) |
+
+#### Subagent return-format contract (REQUIRED)
+
+Every subagent dispatched in this step — implementer, spec reviewer, and
+quality reviewer — receives the **Subagent Return-Format Contract** appended
+to the end of its prompt. The canonical template lives in
+`skills/SKILL-UX.md` §8; copy it verbatim.
+
+In short, the reply must end with:
+
+```
+  STATUS: [DONE|BLOCKED|FAILED]
+  COMMIT: <git sha or "none">
+  REPORT: <path under .forge/reports/ if any, or "none">
+  SUMMARY: <one line, max 200 chars>
+```
+
+The main thread parses **only** these four fields from the reply. Anything
+above the block is ignored. The main thread does **not** read `REPORT` paths
+unless routing decisions require it (e.g. surfacing a failure to the user).
+See SKILL-UX.md §8 for the full template, parser rules, and allowed
+combinations (e.g. `STATUS: DONE` + `COMMIT: none` for review-only tasks).
 
 If the subagent reports BLOCKED:
 

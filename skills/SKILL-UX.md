@@ -124,7 +124,82 @@ For blocked transitions:
 
 ---
 
-## 7. Rules
+## 7. Constraint Block
+
+Output at the **top** of a skill file (just below the front-matter and `# /command`
+heading) when the skill must enforce hard prohibitions on the main thread —
+e.g. /executing forbids the main thread from running `edit`, `write`, or `bash
+<test-runner>` so context stays small.
+
+```
+## ⛔ Main-thread hard constraints
+
+<one-paragraph statement of what role the main thread plays in this skill>
+
+During <scope> the main thread **MUST NOT**:
+
+- <forbidden tool/action>
+- <forbidden tool/action>
+
+The main thread **MAY**:
+
+- <allowed tool/action>
+- <allowed tool/action>
+```
+
+Rules:
+
+- One block per skill, never repeated mid-flow.
+- Use the literal `⛔` symbol in the heading; do not substitute alternatives.
+- Each prohibition must name a concrete tool or command, not a vague concept
+  ("don't be lazy").
+- Pair each prohibition with the supported alternative when one exists
+  (e.g. forbid `bash python -m pytest` → require `forge test --summarize`).
+
+---
+
+## 8. Subagent Return-Format Contract
+
+Append this contract verbatim to the end of any prompt dispatched to a
+subagent (implementer, reviewer, scanner, etc.) so the parent thread can
+parse the reply with a fixed-width, low-context grammar:
+
+```
+## Return Format (REQUIRED)
+
+Reply MUST end with this exact block, nothing after it:
+
+  STATUS: [DONE|BLOCKED|FAILED]
+  COMMIT: <git sha or "none">
+  REPORT: <path under .forge/reports/ if any, or "none">
+  SUMMARY: <one line, max 200 chars>
+
+If you have detailed findings (review notes, debugging logs, full file dumps)
+write them to a file under `.forge/reports/` and reference the path in REPORT.
+Do NOT include detailed content in this reply — the main thread will not parse
+it and it inflates the parent context window.
+```
+
+Parser rules for the main thread:
+
+- Parse **only** these four fields. Anything above the block is ignored.
+- Do **not** read the path in `REPORT` unless a routing decision requires it
+  (e.g. surfacing a specific failure to the user).
+- A reply missing the block, or with the block in the wrong order, is treated
+  as `STATUS: FAILED` and the dispatcher must retry or escalate.
+- `STATUS: BLOCKED` → caller should surface SUMMARY and STOP for human input.
+- `STATUS: FAILED` → caller may retry or escalate per its own policy.
+- `STATUS: DONE` and `COMMIT: none` is allowed for review-only tasks that
+  do not produce commits.
+
+This contract is referenced by:
+
+- `forge_executing` D2 (subagent-driven implementation + reviews)
+- Any future delegated guard skill that dispatches subagents
+
+---
+
+## 9. Rules
 
 - **No emoji beyond the defined set** (`⚒ ▸ ✔ ⏸ ✘`). Do not add 🎉, 🚀, etc.
 - **No bold or headers mid-flow.** Use plain lines. Structure comes from the

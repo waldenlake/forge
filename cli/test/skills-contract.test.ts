@@ -237,4 +237,70 @@ describe("Forge skill contracts", () => {
     // Converges on run-loop
     expect(content).toContain("run-loop");
   });
+
+  // Context-management spec (2026-06-04): Requirement 3.3 + 3.4 — main-thread
+  // parser is constrained to exactly the 4 contract fields and must not pull
+  // REPORT files into context speculatively. These rules are stable across
+  // skills, so SKILL-UX.md owns the canonical wording.
+  test("SKILL-UX subagent contract documents main-thread parser rules", () => {
+    const content = readSkill("skills/SKILL-UX.md");
+
+    // Section header for the contract must exist.
+    expect(content).toContain("## 8. Subagent Return-Format Contract");
+
+    // Rule 3.3: parser reads only the 4 fields.
+    expect(content).toMatch(
+      /Parse\s+\*\*only\*\*\s+these\s+four\s+fields/i,
+    );
+
+    // Rule 3.4: main thread does NOT read REPORT path proactively.
+    expect(content).toMatch(
+      /Do\s+\*\*not\*\*\s+read\s+the\s+path\s+in\s+`REPORT`/i,
+    );
+
+    // Recovery clause when contract block is missing/malformed.
+    expect(content).toMatch(/missing the block.*STATUS:\s*FAILED/is);
+  });
+
+  test("executing skill restates the parser-rule discipline at the dispatch site", () => {
+    const content = readSkill("skills/forge_executing/SKILL.md");
+
+    // The skill must restate the "parse only 4 fields" rule near D2 so it
+    // is visible at the point of dispatch, not just buried in SKILL-UX.
+    expect(content).toMatch(/parses\s+\*\*only\*\*\s+these\s+four\s+fields/i);
+
+    // It must restate "do not read REPORT proactively".
+    expect(content).toMatch(/does\s+\*\*not\*\*\s+read\s+`?REPORT`?\s+paths/i);
+
+    // Cross-reference to the canonical template.
+    expect(content).toMatch(/SKILL-UX(\.md)?\s*§\s*8/i);
+  });
+  test("executing skill embeds the subagent return-format contract", () => {
+    const content = readSkill("skills/forge_executing/SKILL.md");
+
+    // Each of the four required field names must appear.
+    for (const field of ["STATUS:", "COMMIT:", "REPORT:", "SUMMARY:"]) {
+      expect(
+        content.includes(field),
+        `forge_executing/SKILL.md must mention ${field} in the return contract`,
+      ).toBe(true);
+    }
+
+    // Must enumerate the allowed STATUS values.
+    expect(content).toMatch(/DONE.*BLOCKED.*FAILED|BLOCKED.*FAILED.*DONE/);
+
+    // Contract must be co-located with D2 (subagent dispatch step), not
+    // hidden in error handling or appendices.
+    const d2Index = content.indexOf("### D2");
+    const contractIndex = content.indexOf("STATUS:");
+    const d3Index = content.indexOf("### D3");
+    expect(d2Index, "D2 step must exist").toBeGreaterThan(-1);
+    expect(d3Index, "D3 step must exist").toBeGreaterThan(-1);
+    expect(contractIndex).toBeGreaterThan(d2Index);
+    expect(contractIndex).toBeLessThan(d3Index);
+
+    // Subagent must be told to write detailed work to a file under
+    // .forge/reports/ and reference the path in REPORT.
+    expect(content).toContain(".forge/reports/");
+  });
 });

@@ -15,6 +15,7 @@ import {
   isGstackInstalled,
   type GstackResult,
 } from "../lib/gstack.js";
+import { safeIsoForFilename, writeReportFile } from "../lib/reports.js";
 import { runShellCommand, type ShellCommandResult } from "../lib/runner.js";
 import { runDependencyAudit } from "../lib/scanners/dependency.js";
 import { scanFiles } from "../lib/scanners/security.js";
@@ -35,6 +36,7 @@ import {
 type VerifyCommandOptions = {
   coverage?: boolean;
   plan?: boolean;
+  summarize?: boolean;
 };
 
 type FailureClass = "implementation" | "security" | "infra" | null;
@@ -81,6 +83,25 @@ type VerificationReport = {
   duration_ms: number;
 };
 
+/**
+ * Lightweight summary returned by `verify --summarize`. Designed for context
+ * efficiency: detail (results, tests, build) lives in the on-disk report file
+ * referenced by report_path; only counts and routing fields are returned.
+ */
+type VerificationSummary = {
+  ok: boolean;
+  status: "passed" | "failed";
+  failure_class: FailureClass;
+  attempts: number;
+  duration_ms: number;
+  report_path: string;
+  steps: {
+    passed: number;
+    failed: number;
+    skipped: number;
+  };
+};
+
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
 }
@@ -121,6 +142,23 @@ function aggregateFailureClass(results: VerifyResultEntry[]): FailureClass {
   if (results.some((r) => r.class === "infra")) return "infra";
   if (results.some((r) => r.class === "implementation")) return "implementation";
   return null;
+}
+
+/** Count step entries by outcome category for --summarize output. */
+function countSteps(results: VerifyResultEntry[]): {
+  passed: number;
+  failed: number;
+  skipped: number;
+} {
+  let passed = 0;
+  let failed = 0;
+  let skipped = 0;
+  for (const entry of results) {
+    if (entry.skipped) skipped += 1;
+    else if (entry.ok) passed += 1;
+    else failed += 1;
+  }
+  return { passed, failed, skipped };
 }
 
 /** Wrap a GstackResult into a VerifyResultEntry tagged with implementation class on failure. */
@@ -283,6 +321,10 @@ export function registerVerifyCommand(program: Command): void {
     .command("verify")
     .option("--coverage", "run coverage command when configured")
     .option("--plan", "print verification plan without executing")
+    .option(
+      "--summarize",
+      "write full report to .forge/reports/verify-<ISO>.json, return only structured summary",
+    )
     .action((options: VerifyCommandOptions) => {
       const cwd = process.cwd();
       const config = readConfig(cwd);
@@ -456,9 +498,24 @@ export function registerVerifyCommand(program: Command): void {
       const passed = results.every((r) => r.ok);
       const status = passed ? "passed" : "failed";
       const lastRun = nowIso();
-      const reportPath = `.forge/verification-${reportTimestamp(lastRun)}.json`;
       const attempts = passed ? 0 : previousAttempts + 1;
       const failureClass = aggregateFailureClass(results);
+
+      // Two on-disk layouts:
+      //  - default: .forge/verification-<ISO>.json (legacy, read by /next-action
+      //    + audit). One file per run, full report inline.
+      //  - --summarize: .forge/reports/verify-<ISO>.json (context-management
+      //    spec). Same full report content, but stdout returns only a summary.
+      // Legacy callers still get the legacy file written to keep audit trails
+      // intact regardless of which mode the run used.
+      const legacyReportPath = `.forge/verification-${reportTimestamp(lastRun)}.json`;
+      const summarizeFilename = options.summarize
+        ? `verify-${safeIsoForFilename()}.json`
+        : null;
+      const summarizeReportPath = summarizeFilename
+        ? `.forge/reports/${summarizeFilename}`
+        : null;
+      const reportPath = summarizeReportPath ?? legacyReportPath;
 
       const report: VerificationReport = {
         ok: passed,
@@ -472,12 +529,14 @@ export function registerVerifyCommand(program: Command): void {
         duration_ms: Date.now() - startedAt,
       };
 
-      mkdirSync(dirname(join(cwd, reportPath)), { recursive: true });
-      writeFileSync(
-        join(cwd, reportPath),
-        `${JSON.stringify(report, null, 2)}\n`,
-        "utf8",
-      );
+      const reportJson = `${JSON.stringify(report, null, 2)}\n`;
+
+      if (summarizeFilename) {
+        writeReportFile(cwd, summarizeFilename, reportJson);
+      } else {
+        mkdirSync(dirname(join(cwd, legacyReportPath)), { recursive: true });
+        writeFileSync(join(cwd, legacyReportPath), reportJson, "utf8");
+      }
       writeProgress(
         cwd,
         verificationProgress(readProgress(cwd), status, {
@@ -490,6 +549,21 @@ export function registerVerifyCommand(program: Command): void {
       if (!passed) {
         process.exitCode = 1;
       }
+
+      if (options.summarize) {
+        const summary: VerificationSummary = {
+          ok: passed,
+          status,
+          failure_class: failureClass,
+          attempts,
+          duration_ms: report.duration_ms,
+          report_path: reportPath,
+          steps: countSteps(results),
+        };
+        writeJson(summary);
+        return;
+      }
+
       writeJson(report);
     });
 }

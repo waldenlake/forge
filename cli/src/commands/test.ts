@@ -3,11 +3,17 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { runShellCommand, type ShellCommandResult } from "../lib/runner.js";
 import { readConfig, type ForgeConfig, type TestProfile } from "../state/config.js";
+import {
+  parseTestCounts,
+  parseFailures,
+} from "../lib/test-parsers/index.js";
+import { safeIsoForFilename, writeReportFile } from "../lib/reports.js";
 
 type TestCommandOptions = {
   profile?: string;
   allProfiles?: boolean;
   coverage?: boolean;
+  summarize?: boolean;
 };
 
 export type TestProfileResult = ShellCommandResult & {
@@ -21,6 +27,22 @@ export type TestRunResult = {
   passed: string[];
   failed: string[];
   duration_ms: number;
+};
+
+export type TestFailureEntry = {
+  profile: string;
+  test: string;
+  error: string;
+};
+
+export type TestSummarizeResult = {
+  ok: boolean;
+  passed: number;
+  failed: number;
+  skipped: number;
+  duration_ms: number;
+  failures: TestFailureEntry[];
+  report_path: string;
 };
 
 function writeJson(payload: unknown): void {
@@ -38,6 +60,63 @@ function commandFor(profile: TestProfile, coverage: boolean): string {
   }
 
   return profile.command;
+}
+
+function writeReportLog(
+  cwd: string,
+  profiles: TestProfileResult[],
+): string {
+  const filename = `test-${safeIsoForFilename()}.log`;
+
+  const sections = profiles.map((p) => {
+    const header = `=== Profile: ${p.name} (${p.framework}) ===\n`;
+    const cmdLine = `$ ${p.command}\n`;
+    const stdoutSection = p.stdout ? `--- stdout ---\n${p.stdout}\n` : "";
+    const stderrSection = p.stderr ? `--- stderr ---\n${p.stderr}\n` : "";
+    return header + cmdLine + stdoutSection + stderrSection;
+  });
+
+  return writeReportFile(cwd, filename, sections.join("\n"));
+}
+
+function buildSummarizeResult(
+  result: TestRunResult,
+  reportPath: string,
+): TestSummarizeResult {
+  let totalPassed = 0;
+  let totalFailed = 0;
+  let totalSkipped = 0;
+  const allFailures: TestFailureEntry[] = [];
+
+  for (const profile of result.profiles) {
+    const combined = profile.stdout + "\n" + profile.stderr;
+    const counts = parseTestCounts(combined);
+    totalPassed += counts.passed;
+    totalFailed += counts.failed;
+    totalSkipped += counts.skipped;
+
+    if (!profile.ok && allFailures.length < 5) {
+      const failures = parseFailures(combined);
+      for (const f of failures) {
+        if (allFailures.length >= 5) break;
+        allFailures.push({
+          profile: profile.name,
+          test: f.test,
+          error: f.error,
+        });
+      }
+    }
+  }
+
+  return {
+    ok: result.ok,
+    passed: totalPassed,
+    failed: totalFailed,
+    skipped: totalSkipped,
+    duration_ms: result.duration_ms,
+    failures: allFailures,
+    report_path: reportPath,
+  };
 }
 
 function selectedProfileNames(
@@ -102,6 +181,7 @@ export function registerTestCommand(program: Command): void {
     .option("--profile <name>", "test profile to run")
     .option("--all-profiles", "run all configured test profiles")
     .option("--coverage", "run coverage command when configured")
+    .option("--summarize", "write full output to report file, return JSON summary")
     .action((options: TestCommandOptions) => {
       const cwd = process.cwd();
       const config = readConfig(cwd);
@@ -122,6 +202,17 @@ export function registerTestCommand(program: Command): void {
         profileNames,
         coverage: options.coverage ?? false,
       });
+
+      if (options.summarize) {
+        const reportPath = writeReportLog(cwd, result.profiles);
+        const summary = buildSummarizeResult(result, reportPath);
+
+        if (!result.ok) {
+          process.exitCode = 1;
+        }
+        writeJson(summary);
+        return;
+      }
 
       const marker = { ok: result.ok, at: new Date().toISOString(), passed: result.passed, failed: result.failed };
       writeFileSync(join(cwd, ".forge", "last-test.json"), JSON.stringify(marker), "utf8");
