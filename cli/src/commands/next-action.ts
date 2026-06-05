@@ -6,6 +6,7 @@ import type { ForgeProgress, ForgeTask, ProgressStatus } from "../state/progress
 import { readProgressLoose, readRawConfigVersion } from "../state/looseRead.js";
 import { triggeredGuards } from "../lib/guard.js";
 import type { TriggeredGuard } from "../lib/guard.js";
+import { evaluateContextCheckpoint } from "../plugins/context-manager.js";
 
 // ── Output schema (discriminated union) ────────────────────────────────
 
@@ -214,7 +215,36 @@ function handleExecuting(config: ForgeConfig, progress: ForgeProgress): NextActi
     };
   }
 
-  // Priority 3: in_progress or pending task → forge_executing
+  // Priority 3: context-manager checkpoint — if over threshold, suggest handoff
+  // instead of dispatching the next task. This fires only when:
+  //   - plugin is enabled
+  //   - platform supports context reading
+  //   - usage_pct > threshold
+  // The checkpoint is here (between guards and next-task dispatch) because
+  // this is the only clean seam where task N is done and task N+1 hasn't started.
+  const cwd = process.cwd();
+  const contextDecision = evaluateContextCheckpoint(cwd);
+  if (contextDecision.action === "handoff-session") {
+    return {
+      ok: true,
+      phase: "executing",
+      action: "handoff-session",
+      method: contextDecision.method,
+      reason: contextDecision.reason,
+      reminder: REMINDER,
+    } as any;
+  }
+  if (contextDecision.action === "suggest-compact") {
+    return {
+      ok: true,
+      phase: "executing",
+      action: "suggest-compact",
+      reason: contextDecision.reason,
+      reminder: REMINDER,
+    } as any;
+  }
+
+  // Priority 4: in_progress or pending task → forge_executing
   const task =
     progress.tasks.find((t) => t.status === "in_progress") ??
     progress.tasks.find((t) => t.status === "pending");
@@ -230,7 +260,7 @@ function handleExecuting(config: ForgeConfig, progress: ForgeProgress): NextActi
     };
   }
 
-  // Priority 4: all tasks done/deferred → phase:complete
+  // Priority 5: all tasks done/deferred → phase:complete
   return {
     ok: true,
     phase: "executing",

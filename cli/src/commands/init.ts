@@ -13,6 +13,36 @@ import { FORGE_CLI_VERSION } from "../lib/version.js";
 import { defaultConfig, writeConfig } from "../state/config.js";
 import { idleProgress, progressPath, writeProgress } from "../state/progress.js";
 
+/**
+ * Claude Code hook commands for context management seed injection.
+ * PreCompact: injects handoff state before compaction so /resume can recover.
+ * PostCompact: re-injects after compaction in case the seed was partially lost.
+ */
+const CLAUDE_HOOKS_TEMPLATE = {
+  PreCompact: [
+    {
+      matcher: "",
+      hooks: [
+        {
+          type: "command",
+          command: ".forge/bin/forge handoff:get",
+        },
+      ],
+    },
+  ],
+  PostCompact: [
+    {
+      matcher: "",
+      hooks: [
+        {
+          type: "command",
+          command: ".forge/bin/forge handoff:get",
+        },
+      ],
+    },
+  ],
+};
+
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
 }
@@ -123,6 +153,47 @@ function ensureGitNexusIgnore(cwd: string): void {
   const ignorePath = join(cwd, ".gitnexusignore");
   if (existsSync(ignorePath)) return;
   writeFileSync(ignorePath, GITNEXUS_IGNORE, "utf8");
+}
+
+/**
+ * If the project has a `.claude/` directory (indicating Claude Code usage),
+ * ensure `.claude/settings.json` contains PreCompact and PostCompact hooks
+ * for context management seed injection. Merges with existing settings
+ * rather than overwriting.
+ *
+ * Returns true if hooks were written/updated.
+ */
+function ensureClaudeCodeHooks(cwd: string): boolean {
+  const claudeDir = join(cwd, ".claude");
+  if (!existsSync(claudeDir)) return false;
+
+  const settingsPath = join(claudeDir, "settings.json");
+  let settings: Record<string, any> = {};
+
+  if (existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+    } catch {
+      // If settings.json is malformed, preserve it and don't modify
+      return false;
+    }
+  }
+
+  // Merge: only add hooks that don't already exist
+  if (!settings.hooks) settings.hooks = {};
+  let modified = false;
+
+  for (const [event, hookDef] of Object.entries(CLAUDE_HOOKS_TEMPLATE)) {
+    if (!settings.hooks[event]) {
+      settings.hooks[event] = hookDef;
+      modified = true;
+    }
+  }
+
+  if (modified) {
+    writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8");
+  }
+  return modified;
 }
 
 function ensureForgeSection(
@@ -305,6 +376,9 @@ export function registerInitCommand(program: Command): void {
           : { ok: false, error: baselineResult.stderr.slice(0, 300) };
       }
 
+      // Claude Code hooks: inject PreCompact/PostCompact for context seed.
+      const claude_hooks_written = ensureClaudeCodeHooks(cwd);
+
       writeJson({
         ok: true,
         detected,
@@ -312,6 +386,7 @@ export function registerInitCommand(program: Command): void {
         forge_cli_version: FORGE_CLI_VERSION,
         gitnexus_baseline,
         ...(monorepoResult?.monorepo ? { monorepo: true } : {}),
+        ...(claude_hooks_written ? { claude_hooks_written: true } : {}),
       });
     });
 }

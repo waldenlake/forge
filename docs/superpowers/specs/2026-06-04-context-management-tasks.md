@@ -133,14 +133,14 @@
   - REFACTOR:模板字符串集中
   - **Validates:** Requirement 6.4
 
-- [~] 18. forge init 生成 Claude Code PreCompact/PostCompact hook
+- [x] 18. forge init 生成 Claude Code PreCompact/PostCompact hook
   - 文件:`cli/src/commands/init.ts`、`hooks/pre-compact.template`、`hooks/post-compact.template`
   - RED:测试 init 在 Claude Code 平台生成 `.claude/settings.json` 含 PreCompact + PostCompact hook,均调用 `forge handoff:get`
   - GREEN:在 init 流程检测平台,生成对应 hook 配置
   - REFACTOR:hook 模板抽到独立文件
   - **Validates:** Requirement 6.3
 
-- [~] 19. 安装文档加 Claude Code 环境变量推荐
+- [x] 19. 安装文档加 Claude Code 环境变量推荐
   - 文件:`docs/install-claude-code.md`(新或现有)
   - GREEN:文档化 `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=60` 与 `CLAUDE_CODE_DISABLE_1M_CONTEXT=1`,解释为何推荐
   - REFACTOR:与 CLI 平台特定 README 链接
@@ -148,56 +148,56 @@
 
 ### Phase 4:context-manager 插件(Layer 3)
 
-- [~] 20. 插件骨架 + 配置加载
+- [x] 20. 插件骨架 + 配置加载
   - 文件:`cli/src/plugins/context-manager.ts`(新)
   - RED:测试 `enabled: false` 时,所有插件方法都是 noop;读 `.forge/config.json` 的 `context_management` 段
   - GREEN:实现插件加载、enabled 短路
   - REFACTOR:接口抽象
   - **Validates:** Requirements 11.1, 11.2, 11.6
 
-- [~] 21. run-loop 暴露 task:done 后的 context 检查点
+- [x] 21. run-loop 暴露 task:done 后的 context 检查点
   - 文件:`cli/src/commands/run-loop.ts`、`cli/src/commands/next-action.ts`
   - RED:测试 `run-loop` 在 executing 阶段且上一个 task 刚完成时,调用 `context:usage`,根据返回决定:正常下一个 task / 返回 `action: "handoff-session"` 携带 method
   - GREEN:在 next-action 的 executing handler 加入检查点逻辑(计算 last_forge_event,调 context:usage,阈值判断 + 防循环判断)
   - REFACTOR:把 hook 点抽出来,让插件可注册
   - **Validates:** Requirements 5.1, 5.2, 5.3, 11.3
 
-- [~] 22. 防 handoff 循环计数
+- [x] 22. 防 handoff 循环计数
   - 文件:`cli/src/commands/run-loop.ts`、`cli/src/lib/handoff.ts`
   - RED:测试连续两次 run-loop 调用之间未完成新 task 时,第二次不返回 `handoff-session`
   - GREEN:在 handoff 元数据(handoff.md frontmatter 或单独文件)记录上次 handoff 时的 completed_tasks,判断是否已 +1
   - REFACTOR:`min_tasks_between_handoff` 从 config 读
   - **Validates:** Requirement 5.9
 
-- [~] 23. OpenCode 链路 A 实现(SDK 三步)
+- [x] 23. OpenCode 链路 A 实现(SDK 三步)
   - 文件:`.opencode/plugins/forge.js`、`cli/test/opencode-handoff.test.ts`
   - RED:在隔离的 OpenCode 测试 session 中,触发 `handoff-session` 动作,断言执行 `tui.executeCommand("session.new")` → `appendPrompt("/resume")` → `submitPrompt()`,清空后新 session 自动跑起 /resume
   - GREEN:在 forge.js 注册 `event` hook 监听 session.idle,收到 `handoff-session` 动作时执行 SDK 三步
   - REFACTOR:重试 + 失败降级到链路 B
   - **Validates:** Requirements 5.4, 5.6, 5.12, 11.7, 11.8
 
-- [~] 24. Claude Code + tmux 链路 A 实现
+- [x] 24. Claude Code + tmux 链路 A 实现
   - 文件:`.forge/hooks/context-manager-tmux.sh`(模板)、`cli/src/commands/init.ts`
   - RED:在 tmux 测试 pane 中触发 Stop hook,后台脚本带延迟 send-keys `/clear` Enter,然后 send-keys 恢复命令 Enter,断言 `/clear` 真正执行(不是落进缓冲)
   - GREEN:实现 hook 脚本,延迟值默认 500ms,可配置
   - REFACTOR:与 WezTerm 共用恢复命令模板
   - **Validates:** Requirements 5.5, 5.6, 5.12
 
-- [~] 25. Claude Code + WezTerm 链路 A 实现
+- [x] 25. Claude Code + WezTerm 链路 A 实现
   - 文件:`.forge/hooks/context-manager-wezterm.sh`(模板)
   - RED:同 tmux 但用 `wezterm cli send-text --pane-id $WEZTERM_PANE`
   - GREEN:实现 hook 脚本
   - REFACTOR:与 tmux 共用决策代码
   - **Validates:** Requirements 5.5, 5.6, 5.12
 
-- [~] 26. Claude Code + wt.exe 兜底(开新窗口)
+- [x] 26. Claude Code + wt.exe 兜底(开新窗口)
   - 文件:`.forge/hooks/context-manager-wt.cmd`(模板)
   - RED:在 Windows Terminal 中触发,后台调用 `wt new-tab -d <cwd> cmd /c "claude --append-system-prompt ..."`
   - GREEN:实现 cmd 脚本
   - REFACTOR:文档化"wt 不支持 send-input"的限制
   - **Validates:** Requirements 5.7, 5.12
 
-- [~] 27. 链路 B 提示用户手动 compact
+- [x] 27. 链路 B 提示用户手动 compact
   - 文件:`skills/forge_executing/SKILL.md`、`cli/src/commands/run-loop.ts`
   - RED:测试 `compact_advised: true` 且无可用复用器时,skill 输出 SKILL-UX 格式提示("Context 占用 N% — 建议运行 /compact")
   - GREEN:扩展 forge_executing 在 D4 之前检查 context:usage,按需输出提示;run-loop 在 next-action 输出对应文本
@@ -206,19 +206,19 @@
 
 ### Phase 5:验证与文档
 
-- [~] 28. ut-5 风格端到端 token 验证
+- [x] 28. ut-5 风格端到端 token 验证
   - 文件:`docs/superpowers/specs/2026-06-04-context-management-validation.md`(新)
   - GREEN:在与 ut-5 同等复杂度的真实工程上重跑完整 forge feature(7 task,真实 implementer + 3 层 review + verify + done),从 OpenCode SQLite 读 token,对比目标:bash 测试 <3k、read <5k、最终 context <100k、可跑 task ≥20
   - REFACTOR:数据未达标时文档化偏离原因
   - **Validates:** Requirements 8.2, 9.1, 9.2, 9.3, 9.4
 
-- [~] 29. 链路 A 真机时序验证(强制)
+- [x] 29. 链路 A 真机时序验证(强制)
   - 文件:`docs/superpowers/specs/2026-06-04-context-management-validation.md`
   - GREEN:在 OpenCode、Claude Code+tmux、Claude Code+WezTerm、Claude Code+wt.exe 四种环境各跑一次,断言:① 清空/spawn 在 idle 时刻发起;② `/clear` 真正执行(不落缓冲);③ 恢复命令随后执行;④ 新上下文从正确 task 续上;⑤ 注入失败时静默降级到链路 B,progress.json 不变。记录每环境实测延迟值,写入插件默认配置
   - REFACTOR:任一环境跑不通则文档化并降级该环境到链路 B
   - **Validates:** Requirements 5.4, 5.5, 5.6, 5.7, 5.8, 5.12
 
-- [~] 30. 安装/启用文档
+- [x] 30. 安装/启用文档
   - 文件:`docs/context-manager-plugin.md`(新)
   - GREEN:文档化:① 插件如何启用/禁用(`enabled` 字段)、② 配置 strategy 选择、③ 各终端环境的预期行为、④ 故障排查(看 `forge context:usage` / 看 handoff.md / 看插件日志)
   - REFACTOR:与 README 链接
