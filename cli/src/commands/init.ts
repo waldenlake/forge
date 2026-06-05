@@ -9,6 +9,7 @@ import {
   detectTestProfiles,
 } from "../lib/detect.js";
 import { gitNexusBaseline, isGitNexusInstalled } from "../lib/gitnexus.js";
+import { detectPlatform } from "../lib/platform-detect.js";
 import { FORGE_CLI_VERSION } from "../lib/version.js";
 import { defaultConfig, writeConfig } from "../state/config.js";
 import { idleProgress, progressPath, writeProgress } from "../state/progress.js";
@@ -349,11 +350,28 @@ export function registerInitCommand(program: Command): void {
         gstack_installed: detectOptionalTool("gstack"),
       };
 
+      // Auto-enable context-manager when running on a platform that supports
+      // context occupancy reading (OpenCode SQLite or Claude Code JSONL).
+      // On unsupported platforms the section is omitted so it remains opt-in
+      // via `forge config:context --enable`.
+      const platform = detectPlatform();
+      const autoEnableContext = platform === "opencode" || platform === "claude-code";
+      const contextManagement = autoEnableContext
+        ? {
+            enabled: true,
+            threshold_pct: 0.5,
+            strategy: "in-place-restart" as const,
+            fallback: "prompt-compact" as const,
+            min_tasks_between_handoff: 1,
+          }
+        : undefined;
+
       const config = defaultConfig({
         memory_file: detected.memory_file,
         project_type: detected.project_type,
         test_profiles: detected.test_profiles,
         gstack_installed: detected.gstack_installed,
+        ...(contextManagement ? { context_management: contextManagement } : {}),
       });
 
       writeConfig(cwd, config);
