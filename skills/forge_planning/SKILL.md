@@ -176,7 +176,9 @@ After `phase:advance` succeeds, output `▸ Showing verification plan…` and ru
 $FORGE_CMD verify --plan
 ```
 
-Display the plan as a table:
+Display the plan as a table. Render each `will_run` entry with `✔` and each
+`will_skip` entry with `✘ <name> (<reason>)` — use the `reason` field from
+the JSON verbatim. Example with gstack installed and opt-in steps disabled:
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -187,10 +189,10 @@ Verification plan (will run automatically at /verify):
   ✔ build
   ✔ security_scan       (severity ≥ HIGH)
   ✔ dependency_audit    (allowlist: MIT, Apache-2.0, ISC)
-  ✘ gstack-basic        (gstack_installed = false)
-  ✘ e2e                 (opt-in, disabled)
-  ✘ visual_regression   (opt-in, disabled)
-  ✘ performance         (opt-in, disabled)
+  ✔ gstack-basic
+  ✘ e2e                 (verify.e2e disabled (opt-in))
+  ✘ visual_regression   (verify.visual_regression disabled (opt-in))
+  ✘ performance         (verify.performance disabled (opt-in))
 
 To configure (optional):
   $FORGE_CMD config:verify --enable e2e,visual_regression

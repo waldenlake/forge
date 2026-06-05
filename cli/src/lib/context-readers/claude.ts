@@ -18,6 +18,8 @@ export type ClaudeUsageResult =
       session_id: string;
       total_context: number;
       source: string;
+      /** Model id from the last assistant message (e.g. "claude-sonnet-4-6", "claude-opus-4-6[1m]"). null when absent. */
+      model: string | null;
     }
   | {
       ok: false;
@@ -90,14 +92,22 @@ type AssistantUsage = {
   cache_read_input_tokens?: number;
 };
 
+type AssistantEntry = {
+  usage: AssistantUsage;
+  model: string | null;
+};
+
 /**
  * Read the JSONL file backwards (via full read + reverse scan) and find
- * the last assistant line with a `message.usage` block.
+ * the last assistant line with a `message.usage` block. Returns both the
+ * usage and the assistant message's `model` id (used to size the context
+ * window — see lib/context-window.ts). The model field is part of the
+ * Anthropic message schema; a missing value means "unknown".
  *
  * For very large files, a streaming reverse-read would be more efficient;
  * JSONL files are typically <50MB so full read is acceptable for CLI use.
  */
-function findLastAssistantUsage(filePath: string): AssistantUsage | null {
+function findLastAssistantUsage(filePath: string): AssistantEntry | null {
   let content: string;
   try {
     content = readFileSync(filePath, "utf8");
@@ -114,7 +124,10 @@ function findLastAssistantUsage(filePath: string): AssistantUsage | null {
     try {
       const entry = JSON.parse(line);
       if (entry.type === "assistant" && entry.message?.usage) {
-        return entry.message.usage as AssistantUsage;
+        return {
+          usage: entry.message.usage as AssistantUsage,
+          model: typeof entry.message.model === "string" ? entry.message.model : null,
+        };
       }
     } catch {
       // Skip unparseable lines
@@ -162,17 +175,17 @@ export function readClaudeUsage(
     targetFile = recent;
   }
 
-  const usage = findLastAssistantUsage(targetFile);
-  if (!usage) {
+  const entry = findLastAssistantUsage(targetFile);
+  if (!entry) {
     return {
       ok: false,
       reason: "no assistant message with usage found in session",
     };
   }
 
-  const inputTokens = usage.input_tokens ?? 0;
-  const cacheCreation = usage.cache_creation_input_tokens ?? 0;
-  const cacheRead = usage.cache_read_input_tokens ?? 0;
+  const inputTokens = entry.usage.input_tokens ?? 0;
+  const cacheCreation = entry.usage.cache_creation_input_tokens ?? 0;
+  const cacheRead = entry.usage.cache_read_input_tokens ?? 0;
   const totalContext = inputTokens + cacheCreation + cacheRead;
 
   return {
@@ -180,5 +193,6 @@ export function readClaudeUsage(
     session_id: sessionIdFromPath(targetFile),
     total_context: totalContext,
     source: targetFile,
+    model: entry.model,
   };
 }

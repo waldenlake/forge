@@ -47,6 +47,8 @@ export type ForgeConfig = {
   forge_cli_version: string;
   memory_file: MemoryFile;
   gstack_installed?: boolean;
+  /** True when the gstack AI-skill pack lives at ~/.claude/skills/gstack/. */
+  gstack_skill_available?: boolean;
   build_command?: {
     command: string;
     working_dir: string;
@@ -105,6 +107,9 @@ export function defaultConfig(input: DefaultConfigInput = {}): ForgeConfig {
     forge_cli_version: FORGE_CLI_VERSION,
     memory_file: input.memory_file ?? "AGENTS.md",
     gstack_installed: input.gstack_installed,
+    ...(input.gstack_skill_available !== undefined
+      ? { gstack_skill_available: input.gstack_skill_available }
+      : {}),
     test_coverage: input.test_coverage,
     project_type: input.project_type ?? "existing",
     test_profiles: input.test_profiles ?? {

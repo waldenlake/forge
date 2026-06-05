@@ -11,6 +11,7 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import { readClaudeUsage } from "../lib/context-readers/claude.js";
 import { readOpencodeUsage } from "../lib/context-readers/opencode.js";
+import { resolveWindowSize } from "../lib/context-window.js";
 import {
   detectPlatform,
   detectTerminalCapability,
@@ -23,9 +24,6 @@ type ContextUsageOptions = {
   session?: string;
   platform?: string;
 };
-
-/** Default context window sizes per model family. */
-const DEFAULT_WINDOW_SIZE = 200_000;
 
 /** Default threshold (from config or fallback). */
 const DEFAULT_THRESHOLD_PCT = 0.50;
@@ -92,6 +90,7 @@ export function registerContextCommand(program: Command): void {
       let totalContext: number;
       let sessionId: string;
       let source: string;
+      let model: string | null;
 
       if (platform === "opencode") {
         const dbPath = opencodeDbPath();
@@ -103,6 +102,7 @@ export function registerContextCommand(program: Command): void {
         totalContext = result.total_context;
         sessionId = result.session_id;
         source = result.source;
+        model = result.model;
       } else {
         // claude-code
         const result = readClaudeUsage(cwd, options.session);
@@ -113,10 +113,12 @@ export function registerContextCommand(program: Command): void {
         totalContext = result.total_context;
         sessionId = result.session_id;
         source = result.source;
+        model = result.model;
       }
 
-      // Compute usage percentage
-      const windowSize = DEFAULT_WINDOW_SIZE;
+      // Compute usage percentage. Window size is derived from the model id
+      // the platform reported, never from config or env. See lib/context-window.ts.
+      const windowSize = resolveWindowSize(model);
       const usagePct = totalContext / windowSize;
 
       // Terminal capability for session restart advice
@@ -151,6 +153,7 @@ export function registerContextCommand(program: Command): void {
         ok: true,
         platform,
         session_id: sessionId,
+        model,
         total_context: totalContext,
         window_size: windowSize,
         usage_pct: Math.round(usagePct * 1000) / 1000, // 3 decimal places

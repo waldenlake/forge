@@ -10,6 +10,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, test } from "vitest";
 
 import { detectMonorepoProfiles } from "../src/lib/detect.js";
+import { detectBuildCommand } from "../src/lib/buildCheck.js";
 
 const repoRoot = resolve(import.meta.dirname, "../..");
 const forgeBin = resolve(repoRoot, "cli/dist/index.js");
@@ -167,6 +168,140 @@ describe("detectMonorepoProfiles", () => {
       expect(result.monorepo).toBe(false);
       expect(result.monorepo_type).toBeNull();
       expect(result.detected_profiles).toEqual([]);
+    });
+  });
+});
+
+describe("workspace build detection (single scan, shared with test)", () => {
+  test("workspace profile carries build_command from the same package.json", () => {
+    withTempDir((cwd) => {
+      writeFileSync(
+        join(cwd, "pnpm-workspace.yaml"),
+        'packages:\n  - "packages/*"\n',
+        "utf8",
+      );
+      mkdirSync(join(cwd, "packages", "web"), { recursive: true });
+      writeFileSync(
+        join(cwd, "packages", "web", "package.json"),
+        JSON.stringify({
+          name: "web",
+          devDependencies: { vitest: "^1.0.0" },
+          scripts: { build: "vite build" },
+        }),
+        "utf8",
+      );
+
+      const result = detectMonorepoProfiles(cwd);
+      const web = result.detected_profiles.find((p) => p.name === "web");
+
+      // test + build come from one scan and stay attached to the same dir.
+      expect(web).toMatchObject({
+        framework: "vitest",
+        command: "npx vitest run",
+        working_dir: "packages/web",
+        build_command: "npm run build",
+      });
+    });
+  });
+
+  test("workspace WITHOUT a build script has no build_command", () => {
+    withTempDir((cwd) => {
+      writeFileSync(
+        join(cwd, "pnpm-workspace.yaml"),
+        'packages:\n  - "packages/*"\n',
+        "utf8",
+      );
+      mkdirSync(join(cwd, "packages", "lib"), { recursive: true });
+      writeFileSync(
+        join(cwd, "packages", "lib", "package.json"),
+        JSON.stringify({ name: "lib", devDependencies: { vitest: "^1.0.0" } }),
+        "utf8",
+      );
+
+      const result = detectMonorepoProfiles(cwd);
+      const lib = result.detected_profiles.find((p) => p.name === "lib");
+      expect(lib?.build_command).toBeUndefined();
+    });
+  });
+
+  test("detectBuildCommand reuses a provided monorepo result (no second scan)", () => {
+    withTempDir((cwd) => {
+      writeFileSync(
+        join(cwd, "pnpm-workspace.yaml"),
+        'packages:\n  - "packages/*"\n',
+        "utf8",
+      );
+      // workspace lives in a dir NOT in the old static candidate table.
+      mkdirSync(join(cwd, "packages", "renderer"), { recursive: true });
+      writeFileSync(
+        join(cwd, "packages", "renderer", "package.json"),
+        JSON.stringify({ name: "renderer", scripts: { build: "tsc", test: "vitest" } }),
+        "utf8",
+      );
+
+      const mono = detectMonorepoProfiles(cwd);
+      const build = detectBuildCommand(cwd, undefined, mono);
+
+      expect(build).toEqual({
+        command: "npm run build",
+        working_dir: "packages/renderer",
+      });
+    });
+  });
+
+  test("detectBuildCommand self-scans monorepo when not provided", () => {
+    withTempDir((cwd) => {
+      writeFileSync(
+        join(cwd, "pnpm-workspace.yaml"),
+        'packages:\n  - "packages/*"\n',
+        "utf8",
+      );
+      mkdirSync(join(cwd, "packages", "renderer"), { recursive: true });
+      writeFileSync(
+        join(cwd, "packages", "renderer", "package.json"),
+        JSON.stringify({ name: "renderer", scripts: { build: "tsc" } }),
+        "utf8",
+      );
+
+      // No third arg → buildCheck scans via the authoritative detector itself.
+      const build = detectBuildCommand(cwd);
+      expect(build).toEqual({
+        command: "npm run build",
+        working_dir: "packages/renderer",
+      });
+    });
+  });
+
+  test("detectBuildCommand skips monorepo probe when caller passes null", () => {
+    withTempDir((cwd) => {
+      writeFileSync(
+        join(cwd, "pnpm-workspace.yaml"),
+        'packages:\n  - "packages/*"\n',
+        "utf8",
+      );
+      mkdirSync(join(cwd, "packages", "renderer"), { recursive: true });
+      writeFileSync(
+        join(cwd, "packages", "renderer", "package.json"),
+        JSON.stringify({ name: "renderer", scripts: { build: "tsc" } }),
+        "utf8",
+      );
+
+      // null asserts "not a monorepo" → workspace build is intentionally skipped.
+      const build = detectBuildCommand(cwd, undefined, null);
+      expect(build).toBeNull();
+    });
+  });
+
+  test("config.build_command overrides all auto-detection", () => {
+    withTempDir((cwd) => {
+      writeFileSync(
+        join(cwd, "package.json"),
+        JSON.stringify({ scripts: { build: "vite build" } }),
+        "utf8",
+      );
+      const config = { build_command: { command: "make", working_dir: "." } } as any;
+      const build = detectBuildCommand(cwd, config);
+      expect(build).toEqual({ command: "make", working_dir: "." });
     });
   });
 });

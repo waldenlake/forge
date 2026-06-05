@@ -66,10 +66,20 @@ export function detectPlatform(env?: NodeJS.ProcessEnv): Platform {
  * 2. `wezterm` command exists → wezterm (supports in-place via cli send-text)
  * 3. $WT_SESSION set → Windows Terminal (no send-input, microsoft/terminal#9368)
  * 4. Otherwise → bare (no multiplexer)
+ *
+ * The wezterm command-existence probe is suppressed when:
+ *   - `env` is an explicit object (i.e. unit tests pass {} or partial env)
+ *   - or env.FORGE_TERMINAL_PROBE === "off" (used by integration tests that
+ *     spawn the CLI as a subprocess; the subprocess inherits process.env so
+ *     unit-test convention #1 doesn't apply)
+ *
+ * Both escape hatches prevent false positives on systems that have
+ * wezterm.exe on PATH but aren't actually running it.
  */
 export function detectTerminalCapability(
   env?: NodeJS.ProcessEnv,
 ): TerminalCapability {
+  const useRealEnv = env === undefined;
   const e = env ?? process.env;
 
   // tmux: always supports send-keys to current pane
@@ -77,11 +87,12 @@ export function detectTerminalCapability(
     return { kind: "tmux", supports_in_place: true };
   }
 
-  // WezTerm: check env var first (faster), fall back to command probe
+  // WezTerm: check env var first (faster), fall back to command probe.
   if (e.WEZTERM_PANE || e.WEZTERM_EXECUTABLE) {
     return { kind: "wezterm", supports_in_place: true };
   }
-  if (commandExists("wezterm")) {
+  const probeAllowed = useRealEnv && e.FORGE_TERMINAL_PROBE !== "off";
+  if (probeAllowed && commandExists("wezterm")) {
     return { kind: "wezterm", supports_in_place: true };
   }
 

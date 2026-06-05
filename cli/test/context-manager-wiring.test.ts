@@ -129,6 +129,9 @@ function runLoop(cwd: string, fakeHome: string, env: Record<string, string>) {
       TMUX: "",
       WEZTERM_PANE: "",
       WT_SESSION: "",
+      // Suppress wezterm command-probe: dev/CI hosts may have wezterm.exe
+      // installed without it being the active terminal.
+      FORGE_TERMINAL_PROBE: "off",
       ...env,
     },
   });

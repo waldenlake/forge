@@ -17,6 +17,8 @@ export type OpencodeUsageResult =
       session_id: string;
       total_context: number;
       source: string;
+      /** Model id from the latest assistant message, or null when the schema doesn't expose one. */
+      model: string | null;
     }
   | {
       ok: false;
@@ -37,9 +39,14 @@ const SQL = {
     ORDER BY MAX(m.time_created) DESC
     LIMIT 1
   `,
-  /** Get latest assistant message tokens for a specific session. */
+  /**
+   * Get latest assistant message tokens + model for a specific session.
+   * `model_id` is the column OpenCode uses today; defensive `SELECT *` is
+   * avoided so query plans stay readable. If the schema rename happens we
+   * surface model:null and fall back to platform defaults.
+   */
   LATEST_ASSISTANT_TOKENS: `
-    SELECT m.tokens
+    SELECT m.tokens, m.model_id AS model
     FROM message m
     WHERE m.session_id = ? AND m.role = 'assistant'
     ORDER BY m.time_created DESC
@@ -110,9 +117,22 @@ export function readOpencodeUsage(
     }
 
     // Get latest assistant message
-    const msgRow = db.prepare(SQL.LATEST_ASSISTANT_TOKENS).get(resolvedSessionId) as
-      | { tokens: string }
-      | undefined;
+    let msgRow: { tokens: string; model: string | null } | undefined;
+    try {
+      msgRow = db.prepare(SQL.LATEST_ASSISTANT_TOKENS).get(resolvedSessionId) as
+        | { tokens: string; model: string | null }
+        | undefined;
+    } catch {
+      // Older OpenCode schemas may not have a model column. Retry without it
+      // so the rest of the pipeline still works (model resolves to null →
+      // platform default window).
+      msgRow = db
+        .prepare(
+          "SELECT m.tokens FROM message m WHERE m.session_id = ? AND m.role = 'assistant' ORDER BY m.time_created DESC LIMIT 1",
+        )
+        .get(resolvedSessionId) as { tokens: string } | undefined as any;
+      if (msgRow) (msgRow as any).model = null;
+    }
     if (!msgRow) {
       return {
         ok: false,
@@ -130,6 +150,7 @@ export function readOpencodeUsage(
       session_id: resolvedSessionId,
       total_context: totalContext,
       source: dbPath,
+      model: msgRow.model ?? null,
     };
   } finally {
     try {

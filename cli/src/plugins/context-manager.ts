@@ -14,6 +14,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readClaudeUsage } from "../lib/context-readers/claude.js";
 import { readOpencodeUsage } from "../lib/context-readers/opencode.js";
+import { resolveWindowSize } from "../lib/context-window.js";
 import {
   detectPlatform,
   detectTerminalCapability,
@@ -35,7 +36,6 @@ export type ContextManagerDecision =
     };
 
 const DEFAULT_THRESHOLD_PCT = 0.50;
-const DEFAULT_WINDOW_SIZE = 200_000;
 const DEFAULT_MIN_TASKS_BETWEEN_HANDOFF = 1;
 
 /** Path to the handoff metadata file (tracks last handoff for anti-loop). */
@@ -169,21 +169,27 @@ export function evaluateContextCheckpoint(cwd: string): ContextManagerDecision {
   const minTasks = config.min_tasks_between_handoff ?? DEFAULT_MIN_TASKS_BETWEEN_HANDOFF;
   const platform = detectPlatform();
 
-  // Read context usage
+  // Read context usage. The reader also returns the model id reported by
+  // the platform's session transcript — that's the only honest signal for
+  // window sizing (the user might have switched models mid-session, so
+  // any cached config value would be wrong by the time we read it).
   let totalContext: number;
+  let model: string | null;
   if (platform === "opencode") {
     const result = readOpencodeUsage(opencodeDbPath(), cwd);
     if (!result.ok) return { action: "continue" };
     totalContext = result.total_context;
+    model = result.model;
   } else if (platform === "claude-code") {
     const result = readClaudeUsage(cwd);
     if (!result.ok) return { action: "continue" };
     totalContext = result.total_context;
+    model = result.model;
   } else {
     return { action: "continue" };
   }
 
-  const usagePct = totalContext / DEFAULT_WINDOW_SIZE;
+  const usagePct = totalContext / resolveWindowSize(model);
   if (usagePct <= threshold) return { action: "continue" };
 
   // Anti-loop: check if enough tasks completed since last handoff.

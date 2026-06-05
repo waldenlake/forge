@@ -19,6 +19,10 @@
       "enum": ["CLAUDE.md", "AGENTS.md", "GEMINI.md"]
     },
     "gstack_installed": { "type": "boolean" },
+    "gstack_skill_available": {
+      "type": "boolean",
+      "description": "True when the gstack AI-skill pack is installed at ~/.claude/skills/gstack/. Skill-pack alone does not make verify's gstack steps runnable (no CLI to spawn), but it tells doctor/verify to surface a 'run via AI skill' hint instead of 'missing'."
+    },
     "build_command": {
       "type": "object",
       "additionalProperties": false,

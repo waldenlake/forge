@@ -8,6 +8,7 @@ import { registerConfigTestCommand } from "./commands/config-test.js";
 import { registerConfigVerifyCommand } from "./commands/config-verify.js";
 import { registerContextCommand } from "./commands/context.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
+import { registerEnvCommand } from "./commands/env.js";
 import { registerFeatureCommand } from "./commands/feature.js";
 import { registerGuardCommand } from "./commands/guard.js";
 import { registerHandoffCommand } from "./commands/handoff.js";
@@ -72,6 +73,7 @@ async function main(argv: string[]): Promise<void> {
   registerInitCommand(program);
   registerStatusCommand(program);
   registerDoctorCommand(program);
+  registerEnvCommand(program);
   registerMigrateCommand(program);
   registerSchemaValidateCommand(program);
   registerFeatureCommand(program);

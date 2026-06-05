@@ -9,9 +9,11 @@ Drive the Forge workflow through Phase 4 — full verification (tests +
 coverage + build + security + dependency audit), failure routing, and
 `phase:verify-pass`.
 
-> **Note:** gstack integration (basic tests, E2E, visual regression,
-> performance) is not yet implemented. All gstack-related steps are
-> automatically skipped.
+> **Note:** gstack steps (basic contract+smoke, E2E, visual regression,
+> performance) run when `config.gstack_installed` is true and `gstack` is
+> on PATH. They are skipped (with a `skip_reason` in the report) when
+> either condition is false. E2E / visual / performance are opt-in via
+> `config.verify.*`.
 
 This skill owns the verify phase end-to-end. It must finish with the feature
 in `verified` state (or stop with an explicit blocker).
@@ -66,12 +68,14 @@ Before running the full verification, output `▸ Verification plan:` and run:
 $FORGE_CMD verify --plan
 ```
 
-Display a one-line summary so the user knows what's about to run:
+Display a one-line summary so the user knows what's about to run. Use the
+`will_run` and `will_skip` arrays from the JSON output verbatim — each
+`will_skip` entry has a `reason` field; render it in parens after the name:
 
 ```
 ▸ Verification plan:
-  will run:  tests, build, security_scan, dependency_audit
-  skipped:   gstack-basic (not yet implemented), e2e (not yet implemented), visual_regression (not yet implemented), performance (not yet implemented)
+  will run:  tests, build, security_scan, dependency_audit, gstack-basic
+  skipped:   e2e (verify.e2e disabled (opt-in)), visual_regression (verify.visual_regression disabled (opt-in)), performance (verify.performance disabled (opt-in))
   thresholds: coverage_unit=80, security=HIGH, retry=3
 ```
 
@@ -89,8 +93,11 @@ $FORGE_CMD verify --coverage
 This runs the full Phase 5 pipeline: tests + build +
 security_scan + dependency_audit — driven by `config.verify.*` flags.
 
-> gstack steps (basic, E2E, visual, performance) are not yet implemented
-> and will appear as `skipped` in the verification report.
+> gstack steps (basic, E2E, visual, performance) are skipped when
+> `gstack_installed` is false, when `gstack` is not on PATH, or when the
+> corresponding `config.verify.*` flag is disabled. The `skipped: true`
+> entry in `results[]` carries a `skip_reason`; surface it verbatim if the
+> user asks why a step did not run.
 
 The response is a verification report with:
 - `ok`, `status`

@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { detectOptionalTool } from "./detect.js";
 
 export type GstackResult = {
@@ -7,6 +9,40 @@ export type GstackResult = {
   stderr: string;
   status: number;
 };
+
+/**
+ * Where gstack ships as an AI skill pack — a SKILL.md plus helper scripts
+ * under ~/.claude/skills/gstack/. The pack drives the AI agent (Claude Code,
+ * OpenCode) and is NOT a standalone CLI: there is no top-level `gstack`
+ * binary, only `gstack-*` helper scripts under bin/. Forge's verify phase
+ * spawns `gstack test --contract` etc., so the skill pack alone does NOT
+ * make those verify steps runnable — the AI must invoke the skill manually.
+ *
+ * We surface this distinction so init / doctor / verify can give honest
+ * messages instead of "missing" when the pack is installed.
+ */
+export type GstackAvailability = "cli" | "skill" | "none";
+
+function gstackSkillPackPath(): string {
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? "";
+  return join(home, ".claude", "skills", "gstack", "SKILL.md");
+}
+
+/**
+ * Detect how gstack is installed on this machine.
+ *
+ *   - "cli":   the `gstack` command resolves on PATH (verify can drive it).
+ *   - "skill": the AI-skill pack lives at ~/.claude/skills/gstack/SKILL.md
+ *              (CLI verify steps must be skipped; the AI must run them).
+ *   - "none":  neither is present.
+ *
+ * "cli" wins when both are present — it is strictly more capable.
+ */
+export function detectGstack(): GstackAvailability {
+  if (detectOptionalTool("gstack")) return "cli";
+  if (existsSync(gstackSkillPackPath())) return "skill";
+  return "none";
+}
 
 /**
  * Returns the installed gstack version string, or null if not found.
@@ -30,7 +66,11 @@ export function gstackVersion(): string | null {
 }
 
 /**
- * Returns true if gstack is available on PATH.
+ * Returns true if gstack is available **as a CLI** on PATH.
+ *
+ * Skill-pack installs (~/.claude/skills/gstack/) return false here because
+ * they cannot be driven by the verify subprocess pipeline — use
+ * `detectGstack()` when you need to distinguish skill-pack from absent.
  */
 export function isGstackInstalled(): boolean {
   return detectOptionalTool("gstack");

@@ -474,21 +474,23 @@ describe("init, status, doctor, and migration commands", () => {
     });
   });
 
-  test("doctor emits JSON checks outside a Forge project", () => {
+  test("doctor emits EnvironmentReport JSON outside a Forge project", () => {
     withTempProject((cwd) => {
       const result = runForge(cwd, ["doctor"]);
 
-      const payload = parseStdout(result);
-      expect(payload).toHaveProperty("checks");
-      expect(Array.isArray((payload as { checks: unknown }).checks)).toBe(true);
+      const payload = parseStdout(result) as Record<string, unknown>;
 
-      // Missing config should be reported as a non-critical check (so first-time
-      // users can run `forge init` without doctor blocking them).
-      const checks = (payload as { checks: Array<{ name: string; ok: boolean; critical: boolean }> }).checks;
-      const configCheck = checks.find((c) => c.name === "config");
-      expect(configCheck).toBeDefined();
-      expect(configCheck?.ok).toBe(false);
-      expect(configCheck?.critical).toBe(false);
+      // Top-level structure matches EnvironmentReport
+      expect(payload).toHaveProperty("ok");
+      expect(payload).toHaveProperty("generated_at");
+      expect(payload).toHaveProperty("forge_cli_version");
+      expect(payload).toHaveProperty("cwd");
+      expect(payload).toHaveProperty("platform");
+      expect(payload).toHaveProperty("context");
+      expect(payload).toHaveProperty("tools");
+      expect(payload).toHaveProperty("project");
+      expect(payload).toHaveProperty("issues");
+      expect(Array.isArray((payload as { issues: unknown }).issues)).toBe(true);
     });
   });
 });

@@ -211,6 +211,15 @@ export function registerTaskCommand(program: Command): void {
         guard_triggered: guards.length > 0,
         guards,
         guard_type: guards[0]?.type ?? null,
+        // Mandatory next step. The /executing skill MUST surface this so the
+        // model returns to the run-loop instead of grabbing the next task
+        // directly — that's how the context-manager checkpoint in
+        // handleExecuting() gets a chance to run between tasks.
+        next_action: {
+          required: true,
+          command: "forge run-loop",
+          reason: "return to /next loop so context checkpoint and guard routing run",
+        },
         ...(handoffWarning ? { handoff_warning: handoffWarning } : {}),
       });
 

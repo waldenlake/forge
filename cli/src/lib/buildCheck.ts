@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { detectMonorepoProfiles, type MonorepoDetectResult } from "./detect.js";
 import type { ForgeConfig } from "../state/config.js";
 
 export type BuildCommand = {
@@ -23,34 +24,6 @@ function packageBuildCommand(root: string): BuildCommand | null {
     }
   } catch {
     // Malformed package.json
-  }
-
-  return null;
-}
-
-/**
- * Scan common monorepo subdirectories for a buildable package.json.
- * Returns the first match, preferring well-known frontend dirs.
- */
-function monorepoPackageBuild(root: string): BuildCommand | null {
-  const candidates = [
-    "frontend", "client", "web", "app", "apps/web", "apps/frontend",
-    "packages/ui", "packages/app",
-  ];
-
-  for (const dir of candidates) {
-    const pkgPath = join(root, dir, "package.json");
-    if (!existsSync(pkgPath)) continue;
-    try {
-      const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as {
-        scripts?: Record<string, unknown>;
-      };
-      if (typeof pkg.scripts?.build === "string") {
-        return { command: "npm run build", working_dir: dir };
-      }
-    } catch {
-      // Skip malformed
-    }
   }
 
   return null;
@@ -81,11 +54,23 @@ function goBuildCommand(root: string): BuildCommand | null {
 }
 
 /**
- * Detect a build command for the project root. Checks config.build_command
- * first (user-configured), then falls back to auto-detection from
- * package.json / go.mod / Cargo.toml, including monorepo subdirectories.
+ * Detect a build command for the project root. Resolution order:
+ *   1. config.build_command (user-configured override)
+ *   2. root-level auto-detection (package.json / go.mod / Cargo.toml)
+ *   3. monorepo workspace build — sourced from detectMonorepoProfiles, the
+ *      SINGLE authority for monorepo structure. No static candidate table.
+ *
+ * The optional `monorepo` argument lets callers that already have a workspace
+ * scan (e.g. the snapshot layer) reuse it instead of scanning again:
+ *   - undefined → this function scans once via detectMonorepoProfiles(root)
+ *   - null      → caller asserts "not a monorepo"; skip the workspace probe
+ *   - object    → reuse the caller's result
  */
-export function detectBuildCommand(root: string, config?: ForgeConfig): BuildCommand | null {
+export function detectBuildCommand(
+  root: string,
+  config?: ForgeConfig,
+  monorepo?: MonorepoDetectResult | null,
+): BuildCommand | null {
   if (config?.build_command) {
     return config.build_command;
   }
@@ -100,9 +85,18 @@ export function detectBuildCommand(root: string, config?: ForgeConfig): BuildCom
     return { command: "cargo build", working_dir: "." };
   }
 
-  // Monorepo: scan common frontend subdirectories
-  const monoBuild = monorepoPackageBuild(root);
-  if (monoBuild) return monoBuild;
+  // Monorepo build: use the authoritative workspace scan as the single source
+  // of truth. Each profile already carries the build command detected in the
+  // same package.json read that produced its test command, so build and test
+  // cannot drift.
+  const mono = monorepo === undefined ? detectMonorepoProfiles(root) : monorepo;
+  if (mono?.monorepo) {
+    for (const profile of mono.detected_profiles) {
+      if (profile.build_command) {
+        return { command: profile.build_command, working_dir: profile.working_dir };
+      }
+    }
+  }
 
   return null;
 }

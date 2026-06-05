@@ -173,6 +173,13 @@ export type MonorepoDetectResult = {
     working_dir: string;
     command: string;
     coverage_command?: string;
+    /**
+     * Build command for this workspace, detected in the SAME package.json
+     * read that produced the test command. Present only when the workspace
+     * declares a build (npm scripts.build / go.mod / Cargo.toml). This makes
+     * build and test commands share one scan — they cannot drift.
+     */
+    build_command?: string;
   }>;
 };
 
@@ -214,35 +221,60 @@ function detectWorkspaceFramework(
   framework: string;
   command: string;
   coverage_command?: string;
+  build_command?: string;
 } {
   const pkgPath = join(workspaceDir, "package.json");
 
   if (existsSync(pkgPath)) {
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as PackageJson;
 
+    // Build command comes from the SAME package.json read as the test
+    // command, so a workspace's build and test detection share one scan.
+    const buildField = pkg.scripts?.build;
+    const build_command =
+      typeof buildField === "string" && buildField.length > 0
+        ? "npm run build"
+        : undefined;
+    const withBuild = build_command ? { build_command } : {};
+
     if (hasDependency(pkg, "vitest")) {
       return {
         framework: "vitest",
         command: "npx vitest run",
         coverage_command: "npx vitest run --coverage",
+        ...withBuild,
       };
     }
 
     if (hasDependency(pkg, "jest")) {
-      return { framework: "jest", command: "npx jest" };
+      return { framework: "jest", command: "npx jest", ...withBuild };
     }
 
     if (pkg.scripts?.test) {
-      return { framework: "unknown", command: "npm test" };
+      return { framework: "unknown", command: "npm test", ...withBuild };
+    }
+
+    // package.json present with a build but no test marker: still surface the
+    // build command so monorepo build detection isn't lost.
+    if (build_command) {
+      return { framework: "unknown", command: "npm test", build_command };
     }
   }
 
   if (existsSync(join(workspaceDir, "go.mod"))) {
-    return { framework: "go", command: "go test ./..." };
+    return {
+      framework: "go",
+      command: "go test ./...",
+      build_command: "go build ./...",
+    };
   }
 
   if (existsSync(join(workspaceDir, "Cargo.toml"))) {
-    return { framework: "cargo", command: "cargo test" };
+    return {
+      framework: "cargo",
+      command: "cargo test",
+      build_command: "cargo build",
+    };
   }
 
   return { framework: "unknown", command: "npm test" };

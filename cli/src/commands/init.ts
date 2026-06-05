@@ -1,18 +1,34 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, copyFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Command } from "commander";
 import {
-  detectMemoryFile,
-  detectMonorepoProfiles,
-  detectOptionalTool,
-  detectProjectType,
-  detectTestProfiles,
-} from "../lib/detect.js";
+  detectEnvironment,
+  snapshotToConfig,
+} from "../lib/environment-snapshot.js";
+import { toEnvironmentReport } from "../lib/environment-report.js";
 import { gitNexusBaseline, isGitNexusInstalled } from "../lib/gitnexus.js";
-import { detectPlatform } from "../lib/platform-detect.js";
+import { detectTerminalCapability } from "../lib/platform-detect.js";
 import { FORGE_CLI_VERSION } from "../lib/version.js";
-import { defaultConfig, writeConfig } from "../state/config.js";
+import { writeConfig } from "../state/config.js";
 import { idleProgress, progressPath, writeProgress } from "../state/progress.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Path to the plugin's `hooks/` directory.
+ *
+ * In a normal install the CLI lives at `<plugin_root>/cli/dist/commands/`.
+ * Walking up three levels lands on `<plugin_root>/`. We resolve the hooks
+ * dir from there. CLAUDE_PLUGIN_ROOT, when set, takes precedence: Claude
+ * Code exposes the canonical plugin root via that env var.
+ */
+function pluginHooksDir(): string {
+  if (process.env.CLAUDE_PLUGIN_ROOT) {
+    return join(process.env.CLAUDE_PLUGIN_ROOT, "hooks");
+  }
+  return resolve(__dirname, "../../../hooks");
+}
 
 /**
  * Claude Code hook commands for context management seed injection.
@@ -157,14 +173,77 @@ function ensureGitNexusIgnore(cwd: string): void {
 }
 
 /**
+ * Copy a context-manager hook script from the plugin's hooks/ folder into
+ * the project's .forge/hooks/ folder. Returns the project-relative path the
+ * Stop hook should reference, or null when the source script is missing.
+ *
+ * The .forge/hooks/ location is what hook script comments instruct users
+ * to wire into .claude/settings.json — copying makes those instructions
+ * actually work without the user touching CLAUDE_PLUGIN_ROOT manually.
+ */
+function copyContextManagerHook(
+  cwd: string,
+  filename: string,
+  created: string[],
+): string | null {
+  const sourcePath = join(pluginHooksDir(), filename);
+  if (!existsSync(sourcePath)) return null;
+
+  const targetDir = join(cwd, ".forge", "hooks");
+  ensureDirectory(targetDir, created);
+  const targetPath = join(targetDir, filename);
+
+  // Always overwrite: the plugin source is the authoritative version.
+  // Skipping when target exists would let stale scripts rot in projects.
+  copyFileSync(sourcePath, targetPath);
+  if (!filename.endsWith(".cmd")) {
+    try { chmodSync(targetPath, 0o755); } catch { /* Windows: ignore */ }
+  }
+
+  // Stop hook in settings.json uses repo-relative path so it works regardless
+  // of where the user launches Claude Code from.
+  return process.platform === "win32"
+    ? `.forge\\hooks\\${filename}`
+    : `.forge/hooks/${filename}`;
+}
+
+/**
+ * Choose the right context-manager hook script for this terminal, copy it
+ * into .forge/hooks/, and return the path to register as a Stop hook.
+ *
+ * Selection priority mirrors detectTerminalCapability():
+ *   tmux → context-manager-tmux.sh
+ *   wezterm → context-manager-wezterm.sh
+ *   wt → context-manager-wt.cmd
+ *   bare → null (no auto-handoff possible; user falls back to /compact)
+ */
+function selectStopHookScript(
+  cwd: string,
+  created: string[],
+): string | null {
+  const terminal = detectTerminalCapability();
+  let filename: string | null = null;
+  if (terminal.kind === "tmux") filename = "context-manager-tmux.sh";
+  else if (terminal.kind === "wezterm") filename = "context-manager-wezterm.sh";
+  else if (terminal.kind === "wt") filename = "context-manager-wt.cmd";
+  if (!filename) return null;
+  return copyContextManagerHook(cwd, filename, created);
+}
+
+/**
  * If the project has a `.claude/` directory (indicating Claude Code usage),
- * ensure `.claude/settings.json` contains PreCompact and PostCompact hooks
- * for context management seed injection. Merges with existing settings
- * rather than overwriting.
+ * ensure `.claude/settings.json` contains PreCompact, PostCompact, and Stop
+ * hooks for context management. Merges with existing settings rather than
+ * overwriting.
+ *
+ * Stop hook is the missing link that consumes `.forge/handoff-signal.json`
+ * when the context-manager plugin signals a handoff. Without it, the signal
+ * file is written but never acted on, breaking the entire auto-handoff
+ * chain. Selection is terminal-aware (tmux / wezterm / wt).
  *
  * Returns true if hooks were written/updated.
  */
-function ensureClaudeCodeHooks(cwd: string): boolean {
+function ensureClaudeCodeHooks(cwd: string, created: string[]): boolean {
   const claudeDir = join(cwd, ".claude");
   if (!existsSync(claudeDir)) return false;
 
@@ -187,6 +266,27 @@ function ensureClaudeCodeHooks(cwd: string): boolean {
   for (const [event, hookDef] of Object.entries(CLAUDE_HOOKS_TEMPLATE)) {
     if (!settings.hooks[event]) {
       settings.hooks[event] = hookDef;
+      modified = true;
+    }
+  }
+
+  // Stop hook: terminal-aware. Only registered when the script for the
+  // detected terminal is available; otherwise we leave settings untouched
+  // (the user gets Chain B / suggest-compact behaviour, which still works).
+  if (!settings.hooks.Stop) {
+    const stopScript = selectStopHookScript(cwd, created);
+    if (stopScript) {
+      settings.hooks.Stop = [
+        {
+          matcher: "",
+          hooks: [
+            {
+              type: "command",
+              command: stopScript,
+            },
+          ],
+        },
+      ];
       modified = true;
     }
   }
@@ -324,55 +424,29 @@ export function registerInitCommand(program: Command): void {
 
       writeWrapperScripts(join(forgeDir, "bin"), created);
 
-      const monorepoResult = options.monorepo
-        ? detectMonorepoProfiles(cwd)
-        : null;
+      // Single acquisition: run every detector exactly once. Both the config
+      // and the environment_report below are projections of this snapshot, so
+      // detection never runs twice and the two outputs stay consistent.
+      const snapshot = detectEnvironment(cwd, { monorepo: options.monorepo });
 
-      let testProfiles = detectTestProfiles(cwd);
-      if (monorepoResult?.monorepo && monorepoResult.detected_profiles.length > 0) {
-        testProfiles = Object.fromEntries(
-          monorepoResult.detected_profiles.map((p) => [
-            p.name,
-            {
-              framework: p.framework,
-              command: p.command,
-              working_dir: p.working_dir,
-              ...(p.coverage_command ? { coverage_command: p.coverage_command } : {}),
-            },
-          ]),
-        );
-      }
-
+      // init output contract: `detected` mirrors the historical shape.
       const detected = {
-        project_type: detectProjectType(cwd),
-        memory_file: detectMemoryFile(cwd),
-        test_profiles: testProfiles,
-        gstack_installed: detectOptionalTool("gstack"),
+        project_type: snapshot.project_type,
+        memory_file: snapshot.memory_file,
+        test_profiles: snapshot.test_profiles,
+        // gstack_installed reflects ONLY whether the CLI is on PATH, since
+        // that is the only mode forge's verify subprocess can drive.
+        gstack_installed: snapshot.gstack === "cli",
+        gstack_skill_available: snapshot.gstack === "skill",
+        gstack_availability: snapshot.gstack,
       };
 
-      // Auto-enable context-manager when running on a platform that supports
-      // context occupancy reading (OpenCode SQLite or Claude Code JSONL).
-      // On unsupported platforms the section is omitted so it remains opt-in
-      // via `forge config:context --enable`.
-      const platform = detectPlatform();
-      const autoEnableContext = platform === "opencode" || platform === "claude-code";
-      const contextManagement = autoEnableContext
-        ? {
-            enabled: true,
-            threshold_pct: 0.5,
-            strategy: "in-place-restart" as const,
-            fallback: "prompt-compact" as const,
-            min_tasks_between_handoff: 1,
-          }
-        : undefined;
-
-      const config = defaultConfig({
-        memory_file: detected.memory_file,
-        project_type: detected.project_type,
-        test_profiles: detected.test_profiles,
-        gstack_installed: detected.gstack_installed,
-        ...(contextManagement ? { context_management: contextManagement } : {}),
-      });
+      // Config is a pure projection of the snapshot. context_management is
+      // auto-enabled inside snapshotToConfig only on platforms whose context
+      // occupancy can be read (opencode / claude-code); window size is never
+      // configured (it is derived from the model id on every read — see
+      // lib/context-window.ts).
+      const config = snapshotToConfig(snapshot);
 
       writeConfig(cwd, config);
 
@@ -381,7 +455,7 @@ export function registerInitCommand(program: Command): void {
         created.push(progressPath(cwd));
       }
 
-      ensureForgeSection(cwd, detected.memory_file, created);
+      ensureForgeSection(cwd, snapshot.memory_file, created);
 
       // GitNexus baseline index: non-blocking. Failure is a warning, not a
       // hard error, because init must succeed for the project to be usable.
@@ -394,8 +468,13 @@ export function registerInitCommand(program: Command): void {
           : { ok: false, error: baselineResult.stderr.slice(0, 300) };
       }
 
-      // Claude Code hooks: inject PreCompact/PostCompact for context seed.
-      const claude_hooks_written = ensureClaudeCodeHooks(cwd);
+      // Claude Code hooks: inject PreCompact/PostCompact for context seed,
+      // plus a Stop hook (terminal-aware) that drives the auto-handoff chain.
+      const claude_hooks_written = ensureClaudeCodeHooks(cwd, created);
+
+      // environment_report is the display projection of the SAME snapshot —
+      // no second detection pass.
+      const environment_report = toEnvironmentReport(snapshot);
 
       writeJson({
         ok: true,
@@ -403,8 +482,9 @@ export function registerInitCommand(program: Command): void {
         created,
         forge_cli_version: FORGE_CLI_VERSION,
         gitnexus_baseline,
-        ...(monorepoResult?.monorepo ? { monorepo: true } : {}),
+        ...(snapshot.monorepo?.monorepo ? { monorepo: true } : {}),
         ...(claude_hooks_written ? { claude_hooks_written: true } : {}),
+        environment_report,
       });
     });
 }

@@ -233,16 +233,31 @@ If `ok` is false: output `✘ task:done: <error>` and STOP.
 
 Output `✔ Task <id> done`.
 
-### D4: Return control
+### D4: Return control — MUST call run-loop
 
-After `task:done` succeeds, return control to the `/next` loop. Do NOT
-select the next task, check guards, or run `phase:complete` — the `/next`
-loop will call `forge next-action` again to determine the next step.
+After `task:done` succeeds, you MUST run `forge run-loop` immediately. The
+JSON returned by `task:done` includes a `next_action` field that names this
+exact command — obey it.
 
-When you return control, `/next` is the dispatcher and is responsible for
-acting on whatever the next `run-loop` invocation returns — including
-`handoff-session` and `suggest-compact` actions emitted by the
-context-manager plugin. You do not handle those actions inside `/executing`.
+```bash
+$FORGE_CMD run-loop
+```
+
+Then dispatch on its returned `action` exactly as `/next` does. Do NOT pick
+the next task yourself. Do NOT skip this step "because the next task is
+obvious". The context-manager checkpoint (`handleExecuting` priority 3) only
+runs through `forge next-action` / `run-loop` — bypassing it defeats the
+fixed-window guarantee.
+
+The dispatch contract is identical to `/next`:
+
+| `action` | What you do |
+|----------|-------------|
+| `invoke-skill` | Invoke the named skill with args; if `record` present, run `guard:record` after it returns. |
+| `handoff-session` | Emit the SKILL-UX STOP block from `/next`; do NOT loop. |
+| `suggest-compact` | Emit the SKILL-UX STOP block from `/next`; do NOT loop. |
+| `wait-human` | Output `reason` (+ `recovery`). STOP. |
+| `ok: false` | Output `error` (+ `recovery`). STOP. |
 
 ## Delegated Guard Path
 

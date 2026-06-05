@@ -47,11 +47,12 @@ function assistantLine(usage: {
   cache_creation_input_tokens: number;
   cache_read_input_tokens: number;
   output_tokens?: number;
-}): object {
+}, model?: string): object {
   return {
     type: "assistant",
     message: {
       role: "assistant",
+      ...(model ? { model } : {}),
       usage: {
         input_tokens: usage.input_tokens,
         cache_creation_input_tokens: usage.cache_creation_input_tokens,
@@ -259,6 +260,57 @@ describe("readClaudeUsage", () => {
         expect(result.ok).toBe(true);
         if (!result.ok) return;
         expect(result.total_context).toBe(5000);
+      },
+    );
+  });
+
+  test("returns model id from latest assistant message", () => {
+    withFixtureProject(
+      "/project",
+      [
+        {
+          id: "with-model",
+          lines: [
+            assistantLine(
+              {
+                input_tokens: 100,
+                cache_creation_input_tokens: 0,
+                cache_read_input_tokens: 0,
+              },
+              "claude-opus-4-6[1m]",
+            ),
+          ],
+        },
+      ],
+      (projectsDir) => {
+        const result = readClaudeUsage("/project", undefined, projectsDir);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.model).toBe("claude-opus-4-6[1m]");
+      },
+    );
+  });
+
+  test("returns model: null when assistant message omits model field", () => {
+    withFixtureProject(
+      "/project",
+      [
+        {
+          id: "no-model",
+          lines: [
+            assistantLine({
+              input_tokens: 100,
+              cache_creation_input_tokens: 0,
+              cache_read_input_tokens: 0,
+            }),
+          ],
+        },
+      ],
+      (projectsDir) => {
+        const result = readClaudeUsage("/project", undefined, projectsDir);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.model).toBeNull();
       },
     );
   });

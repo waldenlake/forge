@@ -45,6 +45,9 @@ function runForge(cwd: string, args: string[], envOverrides?: Record<string, str
       WEZTERM_PANE: "",
       WEZTERM_EXECUTABLE: "",
       WT_SESSION: "",
+      // Suppress wezterm command-probe: dev/CI hosts may have wezterm.exe
+      // installed without it being the active terminal.
+      FORGE_TERMINAL_PROBE: "off",
       ...envOverrides,
     },
   });
@@ -201,6 +204,7 @@ describe("forge context:usage", () => {
             TMUX: "",
             WEZTERM_PANE: "",
             WT_SESSION: "",
+            FORGE_TERMINAL_PROBE: "off",
           },
         },
       );
@@ -274,6 +278,7 @@ describe("forge context:usage", () => {
             TMUX: "/tmp/tmux-1000/default,123,0",
             WEZTERM_PANE: "",
             WT_SESSION: "",
+            FORGE_TERMINAL_PROBE: "off",
           },
         },
       );
@@ -341,6 +346,7 @@ describe("forge context:usage", () => {
             TMUX: "",
             WEZTERM_PANE: "",
             WT_SESSION: "",
+            FORGE_TERMINAL_PROBE: "off",
           },
         },
       );

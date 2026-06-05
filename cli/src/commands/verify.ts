@@ -248,7 +248,10 @@ function computeVerifyPlan(cwd: string, config: ForgeConfig): VerifyPlan {
   // gstack-basic
   if (isEnabled(verifyCfg, "gstack_basic", true)) {
     if (!config.gstack_installed) {
-      willSkip.push({ name: "gstack-basic", reason: "gstack_installed is false" });
+      const reason = config.gstack_skill_available
+        ? "gstack is installed as an AI skill pack only (no CLI on PATH); have your AI agent run gstack contract+smoke via the gstack skill"
+        : "gstack_installed is false";
+      willSkip.push({ name: "gstack-basic", reason });
     } else if (!isGstackInstalled()) {
       willSkip.push({ name: "gstack-basic", reason: "gstack not on PATH" });
     } else {
@@ -425,14 +428,16 @@ export function registerVerifyCommand(program: Command): void {
           results.push(gstackResultEntry("gstack-smoke", gstackSmoke(cwd)));
         }
       } else {
-        results.push(
-          skippedEntry(
-            "gstack-basic",
-            isEnabled(verifyCfg, "gstack_basic", true)
-              ? "gstack_installed is false"
-              : "verify.gstack_basic disabled",
-          ),
-        );
+        let reason: string;
+        if (!isEnabled(verifyCfg, "gstack_basic", true)) {
+          reason = "verify.gstack_basic disabled";
+        } else if (config.gstack_skill_available) {
+          reason =
+            "gstack is installed as an AI skill pack only (no CLI on PATH); have your AI agent run gstack contract+smoke via the gstack skill";
+        } else {
+          reason = "gstack_installed is false";
+        }
+        results.push(skippedEntry("gstack-basic", reason));
       }
 
       // Step 4: security scan. Default enabled. Failure → security class.
