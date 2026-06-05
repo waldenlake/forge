@@ -303,10 +303,10 @@ describe("phase transition commands", () => {
       ]);
 
       expect(result.status).toBe(1);
-      expect(parseStdout(result)).toEqual({
-        ok: false,
-        error: "no tasks found",
-      });
+      const payload = parseStdout(result);
+      expect(payload.ok).toBe(false);
+      expect(payload.error).toMatch(/wrong level|three hashes/);
+      expect(payload.expected_format).toBe("### Task <N>: <title>");
       expect(readProgress(cwd)).toEqual(originalProgress);
     });
   });

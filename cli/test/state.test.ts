@@ -25,7 +25,7 @@ describe("state readers and writers", () => {
 
     expect(defaultConfig().guards).toEqual({
       "batch-review": {
-        enabled: true,
+        enabled: false,
         every_n_tasks: 3,
         actions: ["spec-compliance-review"],
       },

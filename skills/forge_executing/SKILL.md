@@ -135,6 +135,33 @@ Output `→ Subagent: task <id> — <title>` then invoke
 The skill runs **three sub-stages in order**. Do NOT proceed to D3 until
 all three pass.
 
+#### Test discipline (passed to the implementer subagent)
+
+When dispatching the implementer, include these rules in the task context
+so RED → GREEN → REFACTOR doesn't drift into anti-patterns the spec already
+warns against:
+
+- **Use shared fixtures for resources, not raw connections.** If the project
+  has a `conftest.py` (pytest), `setUpModule` (unittest), or equivalent
+  fixture providing a database/cache/HTTP client, the test MUST go through
+  it. Opening a parallel `async_session()` / new HTTP client in the test
+  body deadlocks or corrupts the fixture state — on Windows
+  `ProactorEventLoop` will crash, on Linux you'll get phantom rows leaking
+  between tests. There is one connection per test and the fixture owns it.
+- **Never use `time.sleep()` to drive expiry-based assertions.** Tests that
+  rely on `sleep(0.1)` for token expiry, cache TTL, debounce windows, etc.
+  are slow AND flaky AND wrong (real timeouts are seconds not 100ms).
+  Construct the time-bound state directly: insert the row with a past
+  `expires_at`, freeze time with `freezegun` / `vi.useFakeTimers()` /
+  `time.tick()`, or pull the clock through a dependency-injected `now()`
+  the test can override. If the test framework supports it, also avoid
+  `setTimeout(done, ...)` callbacks — use awaitable promises instead.
+- **One assertion per behavior, not per line.** A test asserting "login
+  returns 200, sets a cookie, increments login_count, writes audit log"
+  is testing one behavior (successful login) — group its assertions in
+  one test. A test asserting "login returns 200 for valid creds" and
+  "login returns 401 for bad creds" is testing two behaviors — split.
+
 | Sub-stage | Role |
 |-----------|------|
 | ① Implementer | TDD: RED → GREEN → REFACTOR; commit with `[forge task-<id>]` tag |

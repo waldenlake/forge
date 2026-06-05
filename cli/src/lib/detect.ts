@@ -130,6 +130,31 @@ export function detectTestProfiles(cwd: string): Record<string, TestProfile> {
     };
   }
 
+  // Nested Python project (e.g. backend/, server/, api/, app/, src/) — common
+  // monorepo layout where the JS root has no Python markers but a sub-tree
+  // is the actual Python project. Walk one level deep looking for pyproject
+  // or pytest config + a tests/ directory; if both exist, point pytest at
+  // that working_dir instead of returning a useless echo placeholder.
+  const pythonHints = ["backend", "server", "api", "app", "src", "python"];
+  for (const hint of pythonHints) {
+    const dir = join(cwd, hint);
+    if (!existsSync(dir)) continue;
+    const hasMarker =
+      existsSync(join(dir, "pyproject.toml")) ||
+      existsSync(join(dir, "pytest.ini")) ||
+      existsSync(join(dir, "setup.py")) ||
+      existsSync(join(dir, "tests"));
+    if (hasMarker) {
+      return {
+        default: {
+          framework: "pytest",
+          command: "pytest",
+          working_dir: hint,
+        },
+      };
+    }
+  }
+
   return {
     default: {
       framework: "unknown",

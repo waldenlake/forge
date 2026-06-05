@@ -68,6 +68,24 @@ function writeConfig(cwd: string, config: ForgeConfig = defaultConfig()): void {
   );
 }
 
+/**
+ * batch-review is OFF in defaultConfig() (per-task /executing already runs
+ * three reviewer sub-stages, making batch-review redundant unless the user
+ * explicitly opts in). Tests that exercise batch-review need to enable it
+ * explicitly, mirroring what `forge config:verify --enable batch-review`
+ * does for users.
+ */
+function configWithBatchReview(extra: Partial<ForgeConfig> = {}): ForgeConfig {
+  const base = defaultConfig(extra);
+  return {
+    ...base,
+    guards: {
+      ...base.guards,
+      "batch-review": { ...base.guards["batch-review"], enabled: true },
+    },
+  };
+}
+
 function executingProgress(
   overrides: Partial<ForgeProgress> = {},
 ): ForgeProgress {
@@ -246,7 +264,7 @@ describe("task and guard runtime commands", () => {
 
   test("task:done --id 6 triggers batch-review", () => {
     withTempProject((cwd) => {
-      writeConfig(cwd);
+      writeConfig(cwd, configWithBatchReview());
       writeProgress(
         cwd,
         executingProgress({
@@ -368,6 +386,10 @@ describe("task and guard runtime commands", () => {
         defaultConfig({
           guards: {
             ...defaultConfig().guards,
+            "batch-review": {
+              ...defaultConfig().guards["batch-review"],
+              enabled: true,
+            },
             "security-scan": {
               enabled: true,
               trigger: "keyword",
@@ -429,7 +451,7 @@ describe("task and guard runtime commands", () => {
 
   test("task:done batch-review task_range starts after the last batch guard", () => {
     withTempProject((cwd) => {
-      writeConfig(cwd);
+      writeConfig(cwd, configWithBatchReview());
       writeProgress(
         cwd,
         executingProgress({

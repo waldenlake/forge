@@ -116,7 +116,14 @@ export function defaultConfig(input: DefaultConfigInput = {}): ForgeConfig {
     },
     guards: input.guards ?? {
       "batch-review": {
-        enabled: true,
+        // Default OFF: per-task /executing already runs three reviewer
+        // sub-stages (implementer → spec reviewer → quality reviewer).
+        // batch-review re-runs spec compliance review every N tasks at the
+        // top level, which is redundant with the per-task gate unless you
+        // specifically want a cross-task consistency check. Opt in with
+        // `forge config:verify --enable batch-review` or by editing
+        // `.forge/config.json` if you do.
+        enabled: false,
         every_n_tasks: 3,
         actions: ["spec-compliance-review"],
       },
