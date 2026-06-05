@@ -52,6 +52,38 @@ export type WaitAction = {
   reminder: string;
 };
 
+/**
+ * Context-manager plugin output: signals the LLM to surface a handoff hint
+ * to the user, OR (in supported terminals) the platform hook script picks
+ * up `.forge/handoff-signal.json` and runs the in-place restart sequence.
+ *
+ * The LLM's contract is:
+ * - method "in-place"   → say nothing, the hook will restart in place
+ * - method "new-window" → tell the user "new tab is opening"
+ *
+ * In all cases progress.json is unchanged; this is just a routing hint.
+ */
+export type HandoffAction = {
+  ok: true;
+  phase: ProgressStatus;
+  action: "handoff-session";
+  method: "in-place" | "new-window";
+  reason: string;
+  reminder: string;
+};
+
+/**
+ * Chain B fallback: tell the LLM to render a SKILL-UX STOP block asking
+ * the user to /compact then /resume. progress.json is unchanged.
+ */
+export type SuggestCompactAction = {
+  ok: true;
+  phase: ProgressStatus;
+  action: "suggest-compact";
+  reason: string;
+  reminder: string;
+};
+
 export type ErrorAction = {
   ok: false;
   error: string;
@@ -59,7 +91,13 @@ export type ErrorAction = {
   migration_required?: true;
 };
 
-export type NextActionOutput = CliAction | SkillAction | WaitAction | ErrorAction;
+export type NextActionOutput =
+  | CliAction
+  | SkillAction
+  | WaitAction
+  | HandoffAction
+  | SuggestCompactAction
+  | ErrorAction;
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -232,7 +270,7 @@ function handleExecuting(config: ForgeConfig, progress: ForgeProgress): NextActi
       method: contextDecision.method,
       reason: contextDecision.reason,
       reminder: REMINDER,
-    } as any;
+    };
   }
   if (contextDecision.action === "suggest-compact") {
     return {
@@ -241,7 +279,7 @@ function handleExecuting(config: ForgeConfig, progress: ForgeProgress): NextActi
       action: "suggest-compact",
       reason: contextDecision.reason,
       reminder: REMINDER,
-    } as any;
+    };
   }
 
   // Priority 4: in_progress or pending task → forge_executing

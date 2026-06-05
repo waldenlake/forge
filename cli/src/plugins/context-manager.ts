@@ -20,6 +20,7 @@ import {
   type Platform,
 } from "../lib/platform-detect.js";
 import { configPath, readConfig, type ContextManagementConfig } from "../state/config.js";
+import { progressPath, readProgress } from "../state/progress.js";
 
 export type ContextManagerDecision =
   | { action: "continue" }
@@ -40,6 +41,34 @@ const DEFAULT_MIN_TASKS_BETWEEN_HANDOFF = 1;
 /** Path to the handoff metadata file (tracks last handoff for anti-loop). */
 function handoffMetaPath(cwd: string): string {
   return join(cwd, ".forge", "handoff-meta.json");
+}
+
+/**
+ * Path to the per-project handoff signal file. The platform hook scripts
+ * (.forge/hooks/context-manager-*.sh, .opencode/plugins/forge.js) poll for
+ * this file at agent-idle time and execute the restart sequence when it
+ * appears. Written by `evaluateContextCheckpoint` when a handoff is decided.
+ */
+function handoffSignalPath(cwd: string): string {
+  return join(cwd, ".forge", "handoff-signal.json");
+}
+
+function writeHandoffSignal(
+  cwd: string,
+  decision: { action: "handoff-session"; method: "in-place" | "new-window"; reason: string },
+): void {
+  const payload = {
+    action: decision.action,
+    method: decision.method,
+    reason: decision.reason,
+    written_at: new Date().toISOString(),
+  };
+  try {
+    writeFileSync(handoffSignalPath(cwd), JSON.stringify(payload) + "\n", "utf8");
+  } catch {
+    // Non-fatal: hook scripts will simply not fire, falling back to the
+    // suggest-compact path effectively when the LLM surfaces the action.
+  }
 }
 
 type HandoffMeta = {
@@ -157,13 +186,14 @@ export function evaluateContextCheckpoint(cwd: string): ContextManagerDecision {
   const usagePct = totalContext / DEFAULT_WINDOW_SIZE;
   if (usagePct <= threshold) return { action: "continue" };
 
-  // Anti-loop: check if enough tasks completed since last handoff
-  // Read completed_tasks from progress.json
+  // Anti-loop: check if enough tasks completed since last handoff.
+  // progress.json may be absent during early flow phases — treat that as
+  // "no handoff needed" rather than failing.
+  if (!existsSync(progressPath(cwd))) return { action: "continue" };
+
   let completedTasks = 0;
   try {
-    const { readProgress } = require("../state/progress.js");
-    const progress = readProgress(cwd);
-    completedTasks = progress.completed_tasks;
+    completedTasks = readProgress(cwd).completed_tasks;
   } catch {
     return { action: "continue" };
   }
@@ -176,12 +206,21 @@ export function evaluateContextCheckpoint(cwd: string): ContextManagerDecision {
   const terminal = detectTerminalCapability();
   const reason = `context usage ${Math.round(usagePct * 100)}% exceeds threshold ${Math.round(threshold * 100)}%`;
 
+  let decision: ContextManagerDecision;
   if (platform === "opencode" || terminal.supports_in_place) {
-    return { action: "handoff-session", method: "in-place", reason };
-  }
-  if (terminal.kind === "wt") {
-    return { action: "handoff-session", method: "new-window", reason };
+    decision = { action: "handoff-session", method: "in-place", reason };
+  } else if (terminal.kind === "wt") {
+    decision = { action: "handoff-session", method: "new-window", reason };
+  } else {
+    decision = { action: "suggest-compact", reason };
   }
 
-  return { action: "suggest-compact", reason };
+  // Side effects on handoff: write signal file (for platform hooks) and
+  // record the handoff event (for anti-loop counting on the next checkpoint).
+  if (decision.action === "handoff-session") {
+    writeHandoffSignal(cwd, decision);
+    recordHandoffEvent(cwd, completedTasks);
+  }
+
+  return decision;
 }

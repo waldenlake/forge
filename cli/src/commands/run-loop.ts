@@ -39,6 +39,36 @@ type WaitOutput = {
   steps_executed: StepEntry[];
 };
 
+/**
+ * Output emitted when the context-manager plugin signals a session handoff.
+ * The LLM in /next must surface this action so the user sees what's happening
+ * (Chain A in-place restart triggers via platform hook scripts; Chain A
+ * new-window opens via wt; both proceed without LLM action). The LLM never
+ * runs CLI commands here — it just acknowledges and stops.
+ */
+type HandoffOutput = {
+  ok: true;
+  action: "handoff-session";
+  phase: ProgressStatus;
+  method: "in-place" | "new-window";
+  reason: string;
+  reminder: string;
+  steps_executed: StepEntry[];
+};
+
+/**
+ * Output for Chain B: LLM should render a SKILL-UX STOP block telling the
+ * user to run /compact then /resume. No CLI side effects from the LLM.
+ */
+type SuggestCompactOutput = {
+  ok: true;
+  action: "suggest-compact";
+  phase: ProgressStatus;
+  reason: string;
+  reminder: string;
+  steps_executed: StepEntry[];
+};
+
 type ErrorOutput = {
   ok: false;
   error: string;
@@ -47,7 +77,12 @@ type ErrorOutput = {
   steps_executed: StepEntry[];
 };
 
-export type RunLoopOutput = SkillOutput | WaitOutput | ErrorOutput;
+export type RunLoopOutput =
+  | SkillOutput
+  | WaitOutput
+  | HandoffOutput
+  | SuggestCompactOutput
+  | ErrorOutput;
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -152,6 +187,39 @@ export function runLoopCore(cwd: string): RunLoopOutput {
         skill: action.skill,
         args: action.args,
         record: action.record,
+        reason: action.reason,
+        reminder: action.reminder,
+        steps_executed: steps,
+      };
+    }
+
+    if (action.action === "handoff-session") {
+      steps.push({
+        command: "next-action",
+        ok: true,
+        detail: `handoff-session method=${action.method}`,
+      });
+      return {
+        ok: true,
+        action: "handoff-session",
+        phase: action.phase,
+        method: action.method,
+        reason: action.reason,
+        reminder: action.reminder,
+        steps_executed: steps,
+      };
+    }
+
+    if (action.action === "suggest-compact") {
+      steps.push({
+        command: "next-action",
+        ok: true,
+        detail: "suggest-compact",
+      });
+      return {
+        ok: true,
+        action: "suggest-compact",
+        phase: action.phase,
         reason: action.reason,
         reminder: action.reminder,
         steps_executed: steps,

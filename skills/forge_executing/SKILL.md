@@ -212,18 +212,10 @@ After `task:done` succeeds, return control to the `/next` loop. Do NOT
 select the next task, check guards, or run `phase:complete` — the `/next`
 loop will call `forge next-action` again to determine the next step.
 
-If the `/next` loop returns `action: "suggest-compact"`, output the
-SKILL-UX STOP block with the compact advisory:
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⏸  Context occupancy high — recommend compacting at this task boundary
-▸  Next: run /compact, then /resume to continue
-```
-
-If the `/next` loop returns `action: "handoff-session"`, the context-manager
-plugin handles session restart automatically. No user action needed — the
-new session will auto-resume from handoff.md.
+When you return control, `/next` is the dispatcher and is responsible for
+acting on whatever the next `run-loop` invocation returns — including
+`handoff-session` and `suggest-compact` actions emitted by the
+context-manager plugin. You do not handle those actions inside `/executing`.
 
 ## Delegated Guard Path
 

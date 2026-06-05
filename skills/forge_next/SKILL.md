@@ -74,8 +74,30 @@ STOP.
 | Field | Dispatch |
 |-------|----------|
 | `action: "invoke-skill"` | Invoke the named `skill` with its `args`. If a `record` field exists, run that `guard:record` command after the skill returns. Then go to Step 1. |
+| `action: "handoff-session"` | Context-manager plugin signaled a session handoff. The platform hook will execute the restart in the background. **You MUST stop and emit the SKILL-UX STOP block below — do NOT loop, do NOT pick up the next task.** |
+| `action: "suggest-compact"` | Context occupancy is high but no in-place restart path is available. **You MUST stop and emit the SKILL-UX STOP block below — do NOT loop.** |
 | `action: "wait-human"` | Output `reason` and `recovery` (if present). STOP. |
 | `ok: false` | Output `error` and `recovery` (if present). STOP. |
+
+Output for `handoff-session` (`method` is `"in-place"` or `"new-window"`):
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  Context handoff — <reason from CLI>
+▸  Next: session restarts automatically (<method>); /resume on new context
+```
+
+Output for `suggest-compact`:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏸  <reason from CLI> — recommend compacting at this task boundary
+▸  Next: run /compact, then /resume to continue
+```
+
+These two actions are **terminal for this turn**. The user (or the platform
+hook) will resume forge in a fresh context. Picking up the next task here
+defeats the entire context-management mechanism.
 
 That's it. No `run-cli` handling, no `after` instructions, no `guard:run`.
 The CLI consumed all deterministic steps internally before returning.
