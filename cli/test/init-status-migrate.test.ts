@@ -40,6 +40,16 @@ function runForge(
       ...process.env,
       CLAUDE_PLUGIN_ROOT: "",
       GEMINI_CLI: "",
+      // Scrub OpenCode worker markers so platform detection stays deterministic
+      // even when this suite is executed from inside OpenCode.
+      OPENCODE: "",
+      OPENCODE_PID: "",
+      OPENCODE_RUN_ID: "",
+      OPENCODE_PROCESS_ROLE: "",
+      OPENCODE_HOME: "",
+      OPENCODE_SESSION_ID: "",
+      FORGE_PLATFORM_PROBE: "off",
+      FORGE_TERMINAL_PROBE: "off",
       ...env,
     },
   });
@@ -474,9 +484,9 @@ describe("init, status, doctor, and migration commands", () => {
     });
   });
 
-  test("doctor emits EnvironmentReport JSON outside a Forge project", () => {
+  test("doctor --json emits EnvironmentReport JSON outside a Forge project", () => {
     withTempProject((cwd) => {
-      const result = runForge(cwd, ["doctor"]);
+      const result = runForge(cwd, ["doctor", "--json"]);
 
       const payload = parseStdout(result) as Record<string, unknown>;
 

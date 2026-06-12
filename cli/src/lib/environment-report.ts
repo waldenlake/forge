@@ -270,6 +270,85 @@ function buildIssues(snapshot: EnvironmentSnapshot): Issue[] {
   return issues;
 }
 
+// ─── Human-readable formatting ───────────────────────────────────────────────
+
+/** Compact token count, e.g. 8420 → "8.4k", 200000 → "200k". */
+function fmtTokens(n: number): string {
+  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+/** Status glyph for a tool: ✓ ok, ✗ critical-missing, ⚠ degraded/optional-missing. */
+function toolGlyph(status: ToolStatus, degraded = false): string {
+  if (status.available && !degraded) return "✓";
+  if (!status.available && status.critical) return "✗";
+  return "⚠";
+}
+
+/**
+ * Render an EnvironmentReport as a concise, human-readable summary. Shows the
+ * key facts only: location, platform, model, context budget, tool
+ * availability, and any issues — not the full JSON payload.
+ */
+export function formatEnvironmentReport(report: EnvironmentReport): string {
+  const lines: string[] = [];
+  const c = report.context;
+
+  lines.push(`forge env · ${report.ok ? "ok" : "issues found"}`);
+  lines.push(`  cwd        ${report.cwd}`);
+  lines.push(
+    `  platform   ${report.platform.name} · ${report.platform.terminal}` +
+      (report.platform.supports_in_place_restart ? " · in-place restart" : ""),
+  );
+  lines.push(`  model      ${c.model ?? "(unknown)"}`);
+
+  if (c.used_tokens !== null && c.usage_pct !== null) {
+    lines.push(
+      `  context    ${fmtTokens(c.used_tokens)} / ${fmtTokens(c.window_size)} ` +
+        `(${Math.round(c.usage_pct * 100)}%) · threshold ${Math.round(c.threshold_pct * 100)}%`,
+    );
+  } else {
+    lines.push(
+      `  context    unavailable — ${c.read_error ?? "unknown"} ` +
+        `(window ${fmtTokens(c.window_size)}, threshold ${Math.round(c.threshold_pct * 100)}%)`,
+    );
+  }
+
+  // Tools
+  const t = report.tools;
+  lines.push("");
+  lines.push("  tools");
+  lines.push(`    ${toolGlyph(t.node)} node       ${t.node.version}`);
+  lines.push(`    ${toolGlyph(t.git)} git`);
+  lines.push(`    ${toolGlyph(t.gitnexus)} gitnexus`);
+  lines.push(
+    `    ${toolGlyph(t.gstack, t.gstack.availability === "skill")} gstack     ${t.gstack.availability}`,
+  );
+
+  // Project
+  const p = report.project;
+  const profiles = p.test_profiles.length ? p.test_profiles.join(", ") : "none";
+  lines.push("");
+  lines.push(
+    `  project    ${report.project_type} · profiles: ${profiles} · build: ${p.build_command ?? "none"}` +
+      (p.monorepo ? ` · monorepo: ${p.monorepo_type}` : ""),
+  );
+
+  // Issues
+  if (report.issues.length > 0) {
+    lines.push("");
+    for (const issue of report.issues) {
+      const glyph = issue.level === "error" ? "✗" : "⚠";
+      const tool = issue.tool ? `${issue.tool}: ` : "";
+      lines.push(`  ${glyph} ${tool}${issue.message}`);
+      if (issue.hint) lines.push(`      → ${issue.hint}`);
+    }
+  }
+
+  return lines.join("\n") + "\n";
+}
+
 // ─── Convenience wrapper ─────────────────────────────────────────────────────
 
 /**

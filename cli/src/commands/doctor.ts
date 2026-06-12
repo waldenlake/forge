@@ -1,9 +1,8 @@
 import type { Command } from "commander";
-import { generateEnvironmentReport } from "../lib/environment-report.js";
-
-function writeJson(payload: unknown): void {
-  process.stdout.write(`${JSON.stringify(payload)}\n`);
-}
+import {
+  formatEnvironmentReport,
+  generateEnvironmentReport,
+} from "../lib/environment-report.js";
 
 export function registerDoctorCommand(program: Command): void {
   program
@@ -11,7 +10,8 @@ export function registerDoctorCommand(program: Command): void {
     .option("--monorepo", "scan workspace dirs for monorepo test profiles")
     .option("--platform <name>", "override platform auto-detection")
     .option("--session <id>", "explicit session id for context reader")
-    .action((options: { monorepo?: boolean; platform?: string; session?: string }) => {
+    .option("--json", "output the full machine-readable JSON report")
+    .action((options: { monorepo?: boolean; platform?: string; session?: string; json?: boolean }) => {
       const cwd = process.cwd();
       const report = generateEnvironmentReport(cwd, {
         monorepo: options.monorepo,
@@ -23,6 +23,10 @@ export function registerDoctorCommand(program: Command): void {
         process.exitCode = 1;
       }
 
-      writeJson(report);
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(report)}\n`);
+      } else {
+        process.stdout.write(formatEnvironmentReport(report));
+      }
     });
 }

@@ -25,8 +25,8 @@
  */
 
 import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { detectBuildCommand, type BuildCommand } from "./buildCheck.js";
+import { opencodeDbPath } from "./context-state.js";
 import { readClaudeUsage } from "./context-readers/claude.js";
 import { readOpencodeUsage } from "./context-readers/opencode.js";
 import {
@@ -145,18 +145,6 @@ export type SnapshotInjections = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_THRESHOLD_PCT = 0.5;
-
-/** Resolve the OpenCode DB path for the current OS. */
-function opencodeDbPath(): string {
-  if (process.platform === "win32") {
-    const appData =
-      process.env.LOCALAPPDATA ??
-      join(process.env.USERPROFILE ?? "", "AppData", "Local");
-    return join(appData, "opencode", "opencode.db");
-  }
-  const home = process.env.HOME ?? "";
-  return join(home, ".local", "share", "opencode", "opencode.db");
-}
 
 /**
  * Read context usage from the appropriate backend for the given platform.

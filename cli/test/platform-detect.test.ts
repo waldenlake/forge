@@ -12,6 +12,47 @@ describe("detectPlatform", () => {
     );
   });
 
+  test("returns 'opencode' when OPENCODE=1 (real worker marker)", () => {
+    expect(detectPlatform({ OPENCODE: "1" })).toBe("opencode");
+  });
+
+  test("returns 'opencode' when OPENCODE_RUN_ID is set (real worker marker)", () => {
+    expect(
+      detectPlatform({ OPENCODE_RUN_ID: "7283c6dd-a929-4554-ac2b-7128d165b752" }),
+    ).toBe("opencode");
+  });
+
+  test("returns 'opencode' when OPENCODE_PID is set (real worker marker)", () => {
+    expect(detectPlatform({ OPENCODE_PID: "8456" })).toBe("opencode");
+  });
+
+  test("does NOT treat provider credentials as a platform signal", () => {
+    // ANTHROPIC_AUTH_TOKEN / GEMINI_API_KEY are user-configured creds present
+    // regardless of host — they must not flip detection to claude-code/gemini.
+    expect(
+      detectPlatform({
+        ANTHROPIC_AUTH_TOKEN: "sk-xxxx",
+        GEMINI_API_KEY: "sk-xxxx",
+        GEMINI_MODEL: "gemini-3.1-pro-preview",
+      }),
+    ).toBe("unknown");
+  });
+
+  test("real OpenCode env (markers + provider creds) resolves to opencode", () => {
+    // Mirrors the empirically captured OpenCode worker environment.
+    expect(
+      detectPlatform({
+        OPENCODE: "1",
+        OPENCODE_PID: "8456",
+        OPENCODE_PROCESS_ROLE: "worker",
+        OPENCODE_RUN_ID: "7283c6dd-a929-4554-ac2b-7128d165b752",
+        ANTHROPIC_AUTH_TOKEN: "sk-xxxx",
+        GEMINI_API_KEY: "sk-xxxx",
+        WEZTERM_PANE: "0",
+      }),
+    ).toBe("opencode");
+  });
+
   test("returns 'opencode' when OPENCODE_SESSION_ID is set", () => {
     expect(
       detectPlatform({ OPENCODE_SESSION_ID: "ses_abc123" }),

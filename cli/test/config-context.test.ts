@@ -186,6 +186,13 @@ describe("forge init auto-enables context_management on supported platforms", ()
       env: {
         ...process.env,
         CLAUDE_PLUGIN_ROOT: "",
+        // Scrub ALL host markers so platform detection is deterministic even
+        // when the test suite itself is run from inside OpenCode (which sets
+        // OPENCODE / OPENCODE_PID / OPENCODE_RUN_ID on every worker subprocess).
+        OPENCODE: "",
+        OPENCODE_PID: "",
+        OPENCODE_RUN_ID: "",
+        OPENCODE_PROCESS_ROLE: "",
         OPENCODE_HOME: "",
         OPENCODE_SESSION_ID: "",
         CODEX_CLI: "",
@@ -198,6 +205,22 @@ describe("forge init auto-enables context_management on supported platforms", ()
   test("auto-enables on opencode platform", () => {
     withFreshProject({}, (cwd) => {
       const result = runInit(cwd, { OPENCODE_HOME: "/some/path" });
+      expect(result.status).toBe(0);
+      const config = readConfigFile(cwd);
+      expect(config.context_management?.enabled).toBe(true);
+      expect(config.context_management?.threshold_pct).toBe(0.5);
+    });
+  });
+
+  test("auto-enables on opencode via real worker markers (OPENCODE=1)", () => {
+    withFreshProject({}, (cwd) => {
+      // The actual env OpenCode sets on subprocesses (no OPENCODE_HOME).
+      const result = runInit(cwd, {
+        OPENCODE: "1",
+        OPENCODE_PID: "8456",
+        OPENCODE_RUN_ID: "7283c6dd-a929-4554-ac2b-7128d165b752",
+        OPENCODE_PROCESS_ROLE: "worker",
+      });
       expect(result.status).toBe(0);
       const config = readConfigFile(cwd);
       expect(config.context_management?.enabled).toBe(true);

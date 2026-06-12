@@ -51,7 +51,11 @@ const KNOWN_FAMILIES: Array<{ pattern: RegExp; window: number }> = [
   // OpenAI o1 / o3: 200k
   { pattern: /^o[13]/i, window: DEFAULT_WINDOW_SIZE },
 
-  // DeepSeek-V3 / R1: 128k
+  // DeepSeek-V3 / R1: 128k; DeepSeek-V4+: 200k.
+  // The v4 family ("deepseek-v4-*") ships with a 200k context window.
+  // Must be checked before the generic deepseek fallback.
+  { pattern: /^deepseek-v4/i, window: DEFAULT_WINDOW_SIZE },
+  // DeepSeek-V3 / R1 and other older variants: 128k
   { pattern: /^deepseek/i, window: 128_000 },
 
   // Qwen 2.5 / 3 — 128k typical

@@ -18,6 +18,11 @@ function runForge(args: string[], cwd: string) {
   return spawnSync(process.execPath, [forgeBin, ...args], {
     cwd,
     encoding: "utf8",
+    env: {
+      ...process.env,
+      FORGE_PLATFORM_PROBE: "off",
+      FORGE_TERMINAL_PROBE: "off",
+    },
   });
 }
 

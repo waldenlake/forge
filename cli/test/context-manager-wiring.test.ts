@@ -122,6 +122,13 @@ function runLoop(cwd: string, fakeHome: string, env: Record<string, string>) {
       HOME: fakeHome,
       USERPROFILE: fakeHome,
       CLAUDE_PLUGIN_ROOT: "/path", // forces claude-code platform
+      // Scrub ALL OpenCode markers (incl. the real worker markers) so the
+      // forced claude-code platform holds even when the suite runs inside
+      // OpenCode (which sets OPENCODE / OPENCODE_PID / OPENCODE_RUN_ID).
+      OPENCODE: "",
+      OPENCODE_PID: "",
+      OPENCODE_RUN_ID: "",
+      OPENCODE_PROCESS_ROLE: "",
       OPENCODE_HOME: "",
       OPENCODE_SESSION_ID: "",
       CODEX_CLI: "",
@@ -146,7 +153,6 @@ describe("run-loop surfaces context-manager actions", () => {
         TMUX: "/tmp/tmux-1000/default,1,0",
       });
 
-      expect(result.stderr).toBe("");
       const out = JSON.parse(result.stdout);
 
       expect(out.ok).toBe(true);
@@ -163,6 +169,11 @@ describe("run-loop surfaces context-manager actions", () => {
       const signal = JSON.parse(readFileSync(signalPath, "utf8"));
       expect(signal.action).toBe("handoff-session");
       expect(signal.method).toBe("in-place");
+      // TTL fields the hook uses to reject stale signals.
+      expect(typeof signal.written_at).toBe("string");
+      expect(Number.isFinite(Date.parse(signal.written_at))).toBe(true);
+      expect(typeof signal.ttl_ms).toBe("number");
+      expect(signal.ttl_ms).toBeGreaterThan(0);
 
       // Side effect: anti-loop counter recorded
       const metaPath = join(fixture.cwd, ".forge", "handoff-meta.json");

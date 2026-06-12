@@ -2,9 +2,12 @@
  * OpenCode SQLite context reader.
  *
  * Reads token usage from OpenCode's session database at
- * `~/.local/share/opencode/opencode.db`. The database stores sessions
- * (with a `directory` column linking to the project cwd) and messages
- * (with per-message token breakdowns as JSON in a `tokens` column).
+ * `~/.local/share/opencode/opencode.db`.
+ *
+ * Context usage is derived from the LATEST assistant message's `data->tokens.total`
+ * field — this is the same value OpenCode displays in its "Context X tokens Y% used"
+ * status bar. The session-level `tokens_*` columns are CUMULATIVE sums across all
+ * turns and do NOT represent current context window occupancy.
  *
  * This module is intentionally tolerant of node:sqlite unavailability
  * (experimental in Node 22.x) — callers get an {ok:false} result and
@@ -17,7 +20,7 @@ export type OpencodeUsageResult =
       session_id: string;
       total_context: number;
       source: string;
-      /** Model id from the latest assistant message, or null when the schema doesn't expose one. */
+      /** Model id from the session or latest message, or null. */
       model: string | null;
     }
   | {
@@ -25,47 +28,136 @@ export type OpencodeUsageResult =
       reason: string;
     };
 
+import { createRequire } from "node:module";
+
+// ESM has no global `require`; build one bound to this module so we can load
+// the built-in `node:sqlite` (which has no ESM named export we can statically
+// import without a top-level await). This was the real cause of the old
+// "node:sqlite unavailable" failures: bare `require` threw in the ESM build.
+const nodeRequire = createRequire(import.meta.url);
+
+let _sqliteWarningSuppressed = false;
+
+/**
+ * Load `node:sqlite`, suppressing the one-time ExperimentalWarning it prints to
+ * stderr. forge uses this builtin deliberately; the warning is noise that also
+ * pollutes JSON/stdout-adjacent tooling. Returns the module or throws.
+ */
+function loadSqlite(): { DatabaseSync: new (path: string, opts?: unknown) => unknown } {
+  if (!_sqliteWarningSuppressed) {
+    _sqliteWarningSuppressed = true;
+    const original = process.emit.bind(process);
+    // @ts-expect-error - narrow override of the overloaded emit signature
+    process.emit = (name: string, data: unknown, ...rest: unknown[]) => {
+      if (
+        name === "warning" &&
+        data &&
+        (data as { name?: string }).name === "ExperimentalWarning" &&
+        /sqlite/i.test((data as { message?: string }).message ?? "")
+      ) {
+        return false;
+      }
+      // @ts-expect-error - forward to original emit
+      return original(name, data, ...rest);
+    };
+  }
+  return nodeRequire("node:sqlite");
+}
+
 /**
  * SQL constants — all queries in one place for maintainability.
+ *
+ * Schema notes (verified against opencode-ai 1.15.x):
+ *   - `session.directory` stores POSIX-style paths even on Windows
+ *     (e.g. "E:/space/open/project/forge"), so callers must normalise
+ *     backslashes before binding the parameter.
+ *   - `session.model` is a JSON object: {"id":"…","providerID":"…","variant":"…"}.
+ *   - `message.data` is a JSON blob containing a `tokens` object on assistant
+ *     messages: {"total":N,"input":N,"output":N,"reasoning":N,"cache":{...}}.
+ *     The `total` field is the CURRENT context size (what OpenCode displays).
+ *   - Session-level `tokens_*` columns are cumulative across all turns and
+ *     must NOT be used for context window occupancy checks.
  */
 const SQL = {
-  /** Find the most recently active session matching a working directory. */
-  FIND_SESSION: `
-    SELECT s.id
-    FROM session s
-    JOIN message m ON m.session_id = s.id
-    WHERE s.directory = ?
-    GROUP BY s.id
-    ORDER BY MAX(m.time_created) DESC
+  /** Find the most recently updated session whose directory matches. */
+  FIND_LATEST_SESSION_FOR_DIR: `
+    SELECT id, directory, model
+    FROM session
+    WHERE directory = ?
+    ORDER BY time_updated DESC
+    LIMIT 1
+  `,
+  /** Same but keyed on explicit session id. */
+  FIND_SESSION_BY_ID: `
+    SELECT id, directory, model
+    FROM session
+    WHERE id = ?
     LIMIT 1
   `,
   /**
-   * Get latest assistant message tokens + model for a specific session.
-   * `model_id` is the column OpenCode uses today; defensive `SELECT *` is
-   * avoided so query plans stay readable. If the schema rename happens we
-   * surface model:null and fall back to platform defaults.
+   * Get the most recent message for a session that has a `tokens` object in
+   * its data. We filter by checking the JSON contains "total" to avoid
+   * user messages (which have no tokens field). ORDER BY time_created DESC
+   * gives us the latest turn.
    */
-  LATEST_ASSISTANT_TOKENS: `
-    SELECT m.tokens, m.model_id AS model
-    FROM message m
-    WHERE m.session_id = ? AND m.role = 'assistant'
-    ORDER BY m.time_created DESC
+  LATEST_MESSAGE_WITH_TOKENS: `
+    SELECT data
+    FROM message
+    WHERE session_id = ?
+      AND data LIKE '%"tokens"%'
+      AND data LIKE '%"total"%'
+    ORDER BY time_created DESC
     LIMIT 1
   `,
 } as const;
 
 /**
- * Extract total context tokens from a JSON `tokens` column.
- * Expected shape: `{ "input": N, "cache": { "read": N } }`.
- * Returns input + cache.read.
+ * Convert a Windows path to the POSIX form `session.directory` actually stores.
+ * No-op on platforms that already use forward slashes.
  */
-function extractContextTokens(tokensJson: string): number | null {
+function normaliseDirectoryForLookup(cwd: string): string {
+  return cwd.replace(/\\/g, "/");
+}
+
+/**
+ * `session.model` is a JSON blob like `{"id":"big-pickle","providerID":"…"}`.
+ * Pull just the `id`, which is what resolveWindowSize matches against.
+ * Returns null when the column is missing or unparseable.
+ */
+function extractModelId(modelJson: string | null | undefined): string | null {
+  if (!modelJson) return null;
   try {
-    const parsed = JSON.parse(tokensJson);
-    const input = typeof parsed.input === "number" ? parsed.input : 0;
-    const cacheRead =
-      typeof parsed.cache?.read === "number" ? parsed.cache.read : 0;
-    return input + cacheRead;
+    const parsed = JSON.parse(modelJson);
+    return typeof parsed?.id === "string" ? parsed.id : null;
+  } catch {
+    // Tolerate older rows where `model` was stored as a plain id string.
+    return typeof modelJson === "string" ? modelJson : null;
+  }
+}
+
+type SessionRow = {
+  id: string;
+  directory: string;
+  model: string | null;
+};
+
+type MessageRow = {
+  data: string;
+};
+
+/**
+ * Extract the `tokens.total` value from a message's data JSON. This is the
+ * same number OpenCode displays as "Context X tokens Y% used" — the actual
+ * current context window occupancy for that turn.
+ *
+ * Returns null if parsing fails or the field is absent.
+ */
+function extractTotalFromMessageData(data: string | null | undefined): number | null {
+  if (!data) return null;
+  try {
+    const parsed = JSON.parse(data);
+    const total = parsed?.tokens?.total;
+    return typeof total === "number" && total > 0 ? total : null;
   } catch {
     return null;
   }
@@ -73,6 +165,10 @@ function extractContextTokens(tokensJson: string): number | null {
 
 /**
  * Read context usage from OpenCode's SQLite database.
+ *
+ * Strategy: find the session, then read the latest message's `tokens.total`
+ * which represents the actual current context window occupancy (same value
+ * OpenCode displays in its status bar).
  *
  * @param dbPath - Absolute path to opencode.db
  * @param cwd - Project working directory to match against session.directory
@@ -85,10 +181,7 @@ export function readOpencodeUsage(
 ): OpencodeUsageResult {
   let DatabaseSync: any;
   try {
-    // node:sqlite is experimental in Node 22.x. If unavailable, degrade.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require("node:sqlite");
-    DatabaseSync = mod.DatabaseSync;
+    DatabaseSync = loadSqlite().DatabaseSync;
   } catch {
     return { ok: false, reason: "node:sqlite unavailable" };
   }
@@ -104,53 +197,43 @@ export function readOpencodeUsage(
   }
 
   try {
-    // Resolve session_id
-    let resolvedSessionId: string | undefined = sessionId;
-    if (!resolvedSessionId) {
-      const row = db.prepare(SQL.FIND_SESSION).get(cwd) as
-        | { id: string }
-        | undefined;
-      if (!row) {
-        return { ok: false, reason: `no session found for directory: ${cwd}` };
-      }
-      resolvedSessionId = row.id;
-    }
+    // Resolve the session: explicit id wins, else most recent for cwd.
+    const lookupDir = normaliseDirectoryForLookup(cwd);
+    const row = (sessionId
+      ? db.prepare(SQL.FIND_SESSION_BY_ID).get(sessionId)
+      : db.prepare(SQL.FIND_LATEST_SESSION_FOR_DIR).get(lookupDir)) as
+      | SessionRow
+      | undefined;
 
-    // Get latest assistant message
-    let msgRow: { tokens: string; model: string | null } | undefined;
-    try {
-      msgRow = db.prepare(SQL.LATEST_ASSISTANT_TOKENS).get(resolvedSessionId) as
-        | { tokens: string; model: string | null }
-        | undefined;
-    } catch {
-      // Older OpenCode schemas may not have a model column. Retry without it
-      // so the rest of the pipeline still works (model resolves to null →
-      // platform default window).
-      msgRow = db
-        .prepare(
-          "SELECT m.tokens FROM message m WHERE m.session_id = ? AND m.role = 'assistant' ORDER BY m.time_created DESC LIMIT 1",
-        )
-        .get(resolvedSessionId) as { tokens: string } | undefined as any;
-      if (msgRow) (msgRow as any).model = null;
-    }
-    if (!msgRow) {
+    if (!row) {
       return {
         ok: false,
-        reason: `no assistant messages in session ${resolvedSessionId}`,
+        reason: sessionId
+          ? `session not found: ${sessionId}`
+          : `no session found for directory: ${cwd}`,
       };
     }
 
-    const totalContext = extractContextTokens(msgRow.tokens);
+    // Read the latest message's tokens.total — the real context occupancy.
+    const msgRow = db
+      .prepare(SQL.LATEST_MESSAGE_WITH_TOKENS)
+      .get(row.id) as MessageRow | undefined;
+
+    const totalContext = msgRow ? extractTotalFromMessageData(msgRow.data) : null;
+
     if (totalContext === null) {
-      return { ok: false, reason: "failed to parse tokens JSON" };
+      return {
+        ok: false,
+        reason: "no token data in latest message",
+      };
     }
 
     return {
       ok: true,
-      session_id: resolvedSessionId,
+      session_id: row.id,
       total_context: totalContext,
       source: dbPath,
-      model: msgRow.model ?? null,
+      model: extractModelId(row.model),
     };
   } finally {
     try {

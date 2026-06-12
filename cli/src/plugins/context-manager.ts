@@ -12,15 +12,18 @@
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { readClaudeUsage } from "../lib/context-readers/claude.js";
-import { readOpencodeUsage } from "../lib/context-readers/opencode.js";
-import { resolveWindowSize } from "../lib/context-window.js";
 import {
-  detectPlatform,
-  detectTerminalCapability,
-  type Platform,
-} from "../lib/platform-detect.js";
-import { configPath, readConfig, type ContextManagementConfig } from "../state/config.js";
+  envRestartCapability,
+  readContextState,
+  type ContextStateOk,
+  type RestartMethod,
+} from "../lib/context-state.js";
+import {
+  configPath,
+  readConfig,
+  type ContextManagementConfig,
+  type ContextManagementStrategy,
+} from "../state/config.js";
 import { progressPath, readProgress } from "../state/progress.js";
 
 export type ContextManagerDecision =
@@ -37,6 +40,7 @@ export type ContextManagerDecision =
 
 const DEFAULT_THRESHOLD_PCT = 0.50;
 const DEFAULT_MIN_TASKS_BETWEEN_HANDOFF = 1;
+const HANDOFF_SIGNAL_TTL_MS = 30_000;
 
 /** Path to the handoff metadata file (tracks last handoff for anti-loop). */
 function handoffMetaPath(cwd: string): string {
@@ -62,6 +66,7 @@ function writeHandoffSignal(
     method: decision.method,
     reason: decision.reason,
     written_at: new Date().toISOString(),
+    ttl_ms: HANDOFF_SIGNAL_TTL_MS,
   };
   try {
     writeFileSync(handoffSignalPath(cwd), JSON.stringify(payload) + "\n", "utf8");
@@ -137,20 +142,54 @@ export function isContextManagerEnabled(cwd: string): boolean {
   return loadContextManagerConfig(cwd) !== null;
 }
 
-/**
- * Resolve the OpenCode DB path.
- */
-function opencodeDbPath(): string {
-  if (process.platform === "win32") {
-    const appData = process.env.LOCALAPPDATA ?? join(
-      process.env.USERPROFILE ?? "",
-      "AppData",
-      "Local",
-    );
-    return join(appData, "opencode", "opencode.db");
+function resolveSingleStrategy(
+  strategy: ContextManagementStrategy,
+  capability: RestartMethod | null,
+): RestartMethod | "compact" | null {
+  if (strategy === "off") return null;
+  if (strategy === "prompt-compact") return "compact";
+  if (strategy === "in-place-restart") return capability;
+  if (strategy === "new-window" && capability === "new-window") return "new-window";
+  return null;
+}
+
+export function resolveHandoffMethod(
+  strategy: ContextManagementStrategy,
+  fallback: ContextManagementStrategy,
+  capability: RestartMethod | null,
+): RestartMethod | "compact" {
+  return (
+    resolveSingleStrategy(strategy, capability) ??
+    resolveSingleStrategy(fallback, capability) ??
+    "compact"
+  );
+}
+
+export function decideHandoff(
+  state: ContextStateOk,
+  config: ContextManagementConfig,
+  threshold: number,
+): ContextManagerDecision {
+  if (config.enabled === false || config.strategy === "off") {
+    return { action: "continue" };
   }
-  const home = process.env.HOME ?? "";
-  return join(home, ".local", "share", "opencode", "opencode.db");
+
+  if (state.usage_pct <= threshold) {
+    return { action: "continue" };
+  }
+
+  const reason = `context usage ${Math.round(state.usage_pct * 100)}% exceeds threshold ${Math.round(threshold * 100)}%`;
+  const method = resolveHandoffMethod(
+    config.strategy ?? "in-place-restart",
+    config.fallback ?? "prompt-compact",
+    envRestartCapability(state.platform, state.terminal),
+  );
+
+  if (method === "compact") {
+    return { action: "suggest-compact", reason };
+  }
+
+  return { action: "handoff-session", method, reason };
 }
 
 /**
@@ -167,30 +206,9 @@ export function evaluateContextCheckpoint(cwd: string): ContextManagerDecision {
 
   const threshold = config.threshold_pct ?? DEFAULT_THRESHOLD_PCT;
   const minTasks = config.min_tasks_between_handoff ?? DEFAULT_MIN_TASKS_BETWEEN_HANDOFF;
-  const platform = detectPlatform();
-
-  // Read context usage. The reader also returns the model id reported by
-  // the platform's session transcript — that's the only honest signal for
-  // window sizing (the user might have switched models mid-session, so
-  // any cached config value would be wrong by the time we read it).
-  let totalContext: number;
-  let model: string | null;
-  if (platform === "opencode") {
-    const result = readOpencodeUsage(opencodeDbPath(), cwd);
-    if (!result.ok) return { action: "continue" };
-    totalContext = result.total_context;
-    model = result.model;
-  } else if (platform === "claude-code") {
-    const result = readClaudeUsage(cwd);
-    if (!result.ok) return { action: "continue" };
-    totalContext = result.total_context;
-    model = result.model;
-  } else {
-    return { action: "continue" };
-  }
-
-  const usagePct = totalContext / resolveWindowSize(model);
-  if (usagePct <= threshold) return { action: "continue" };
+  const state = readContextState(cwd);
+  if (!state.ok) return { action: "continue" };
+  if (state.usage_pct <= threshold) return { action: "continue" };
 
   // Anti-loop: check if enough tasks completed since last handoff.
   // progress.json may be absent during early flow phases — treat that as
@@ -208,18 +226,7 @@ export function evaluateContextCheckpoint(cwd: string): ContextManagerDecision {
     return { action: "continue" };
   }
 
-  // Over threshold — determine method
-  const terminal = detectTerminalCapability();
-  const reason = `context usage ${Math.round(usagePct * 100)}% exceeds threshold ${Math.round(threshold * 100)}%`;
-
-  let decision: ContextManagerDecision;
-  if (platform === "opencode" || terminal.supports_in_place) {
-    decision = { action: "handoff-session", method: "in-place", reason };
-  } else if (terminal.kind === "wt") {
-    decision = { action: "handoff-session", method: "new-window", reason };
-  } else {
-    decision = { action: "suggest-compact", reason };
-  }
+  const decision = decideHandoff(state, config, threshold);
 
   // Side effects on handoff: write signal file (for platform hooks) and
   // record the handoff event (for anti-loop counting on the next checkpoint).

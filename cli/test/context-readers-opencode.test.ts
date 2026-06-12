@@ -1,24 +1,73 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 
 import { readOpencodeUsage } from "../src/lib/context-readers/opencode.js";
 
-// Check if node:sqlite is available; if not, skip tests gracefully.
+// Build a require bound to this module so the ESM test can probe node:sqlite
+// the same way the production code loads it.
+const nodeRequire = createRequire(import.meta.url);
+
 let DatabaseSync: any;
 let sqliteAvailable = false;
 try {
-  const mod = require("node:sqlite");
+  const mod = nodeRequire("node:sqlite");
   DatabaseSync = mod.DatabaseSync;
   sqliteAvailable = true;
 } catch {
   // node:sqlite not available
 }
 
+/**
+ * Minimal session/message-table schema mirroring the columns the production reader
+ * SELECTs against opencode-ai 1.15.x. We deliberately don't recreate every
+ * column the real DB has — only the ones the reader reads. Other columns
+ * (tokens_output, tokens_reasoning, etc.) are nullable and unused.
+ */
+const SCHEMA = `
+  CREATE TABLE session (
+    id                  TEXT PRIMARY KEY,
+    directory           TEXT NOT NULL,
+    model               TEXT,
+    tokens_input        INTEGER,
+    tokens_cache_read   INTEGER,
+    tokens_cache_write  INTEGER,
+    tokens_output       INTEGER,
+    tokens_reasoning    INTEGER,
+    time_updated        INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE message (
+    id                  TEXT PRIMARY KEY,
+    session_id          TEXT NOT NULL,
+    data                TEXT,
+    time_created        INTEGER NOT NULL DEFAULT 0
+  );
+`;
+
+type MessageFixture = {
+  id: string;
+  data: string;
+  time_created?: number;
+};
+
+type SessionFixture = {
+  id: string;
+  directory: string;
+  model?: string | null;
+  tokens_input?: number;
+  tokens_cache_read?: number;
+  tokens_cache_write?: number;
+  time_updated?: number;
+  token_total?: number;
+  messages?: MessageFixture[];
+};
+
 function withFixtureDb(
+  sessions: SessionFixture[],
   run: (dbPath: string) => void,
-  opts?: { cwd?: string; sessionId?: string; messages?: any[] },
 ): void {
   if (!sqliteAvailable) return;
 
@@ -27,137 +76,144 @@ function withFixtureDb(
   const db = new DatabaseSync(dbPath);
 
   try {
-    db.exec(`
-      CREATE TABLE session (
-        id TEXT PRIMARY KEY,
-        directory TEXT NOT NULL,
-        created_at INTEGER NOT NULL DEFAULT 0
-      );
-      CREATE TABLE message (
-        id TEXT PRIMARY KEY,
-        session_id TEXT NOT NULL,
-        role TEXT NOT NULL,
-        time_created INTEGER NOT NULL,
-        tokens TEXT
-      );
-    `);
-
-    const sessionCwd = opts?.cwd ?? "/home/user/project";
-    const sessionId = opts?.sessionId ?? "ses_abc123";
-
-    db.prepare(
-      "INSERT INTO session (id, directory, created_at) VALUES (?, ?, ?)",
-    ).run(sessionId, sessionCwd, 1717500000000);
-
-    const messages = opts?.messages ?? [
-      {
-        id: "msg_1",
-        session_id: sessionId,
-        role: "user",
-        time_created: 1717500001000,
-        tokens: JSON.stringify({ input: 1000, output: 0, cache: { read: 0, write: 0 } }),
-      },
-      {
-        id: "msg_2",
-        session_id: sessionId,
-        role: "assistant",
-        time_created: 1717500002000,
-        tokens: JSON.stringify({ input: 5000, output: 500, cache: { read: 160000, write: 2000 } }),
-      },
-      {
-        id: "msg_3",
-        session_id: sessionId,
-        role: "user",
-        time_created: 1717500003000,
-        tokens: JSON.stringify({ input: 6000, output: 0, cache: { read: 0, write: 0 } }),
-      },
-      {
-        id: "msg_4",
-        session_id: sessionId,
-        role: "assistant",
-        time_created: 1717500004000,
-        tokens: JSON.stringify({ input: 2688, output: 800, cache: { read: 160000, write: 0 } }),
-      },
-    ];
-
-    const insertMsg = db.prepare(
-      "INSERT INTO message (id, session_id, role, time_created, tokens) VALUES (?, ?, ?, ?, ?)",
+    db.exec(SCHEMA);
+    const insert = db.prepare(
+      `INSERT INTO session
+         (id, directory, model, tokens_input, tokens_cache_read,
+          tokens_cache_write, time_updated)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     );
-    for (const msg of messages) {
-      insertMsg.run(msg.id, msg.session_id, msg.role, msg.time_created, msg.tokens);
+    const insertMessage = db.prepare(
+      `INSERT INTO message
+         (id, session_id, data, time_created)
+       VALUES (?, ?, ?, ?)`,
+    );
+    for (const s of sessions) {
+      insert.run(
+        s.id,
+        s.directory,
+        s.model ?? null,
+        s.tokens_input ?? 0,
+        s.tokens_cache_read ?? 0,
+        s.tokens_cache_write ?? 0,
+        s.time_updated ?? 0,
+      );
+      const messages =
+        s.messages ??
+        (s.token_total === undefined
+          ? []
+          : [
+              {
+                id: `msg_${s.id}`,
+                data: JSON.stringify({ tokens: { total: s.token_total } }),
+              },
+            ]);
+      for (const message of messages) {
+        insertMessage.run(
+          message.id,
+          s.id,
+          message.data,
+          message.time_created ?? 0,
+        );
+      }
     }
-
     db.close();
     run(dbPath);
   } finally {
-    try {
-      db.close();
-    } catch {
-      // already closed
-    }
+    try { db.close(); } catch { /* already closed */ }
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
 describe.skipIf(!sqliteAvailable)("readOpencodeUsage", () => {
-  test("returns total_context = input + cache.read from latest assistant message", () => {
-    withFixtureDb((dbPath) => {
-      const result = readOpencodeUsage(dbPath, "/home/user/project");
-
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-
-      // Latest assistant msg_4: input=2688, cache.read=160000
-      expect(result.total_context).toBe(2688 + 160000);
-      expect(result.session_id).toBe("ses_abc123");
-      expect(result.source).toBe(dbPath);
-    });
-  });
-
-  test("locates session by cwd matching directory column", () => {
+  test("returns latest message tokens.total as total_context", () => {
     withFixtureDb(
+      [
+        {
+          id: "ses_abc",
+          directory: "/home/user/project",
+          model: JSON.stringify({ id: "claude-sonnet-4-6", providerID: "opencode" }),
+          tokens_input: 12_000,
+          tokens_cache_read: 88_000,
+          tokens_cache_write: 1234,
+          token_total: 100_000,
+        },
+      ],
       (dbPath) => {
-        const result = readOpencodeUsage(dbPath, "/different/project");
+        const result = readOpencodeUsage(dbPath, "/home/user/project");
         expect(result.ok).toBe(true);
         if (!result.ok) return;
-        expect(result.session_id).toBe("ses_other");
+        expect(result.total_context).toBe(100_000);
+        expect(result.session_id).toBe("ses_abc");
+        expect(result.source).toBe(dbPath);
+        // model JSON is unwrapped to its `id`
+        expect(result.model).toBe("claude-sonnet-4-6");
       },
-      {
-        cwd: "/different/project",
-        sessionId: "ses_other",
-        messages: [
-          {
-            id: "msg_x",
-            session_id: "ses_other",
-            role: "assistant",
-            time_created: 1717500001000,
-            tokens: JSON.stringify({ input: 100, output: 10, cache: { read: 200, write: 0 } }),
-          },
-        ],
+    );
+  });
+
+  test("normalises Windows backslashes to the POSIX directory the DB stores", () => {
+    // session.directory holds POSIX paths even on Windows, so the reader must
+    // accept a Windows cwd and find the row.
+    withFixtureDb(
+      [
+        {
+          id: "ses_win",
+          directory: "E:/space/open/project/forge",
+          tokens_input: 1000,
+          tokens_cache_read: 5000,
+          token_total: 6000,
+        },
+      ],
+      (dbPath) => {
+        const result = readOpencodeUsage(dbPath, "E:\\space\\open\\project\\forge");
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.session_id).toBe("ses_win");
+        expect(result.total_context).toBe(6000);
       },
     );
   });
 
   test("returns ok:false when no session matches cwd", () => {
-    withFixtureDb((dbPath) => {
-      const result = readOpencodeUsage(dbPath, "/nonexistent/path");
-      expect(result.ok).toBe(false);
-      if (result.ok) return;
-      expect(result.reason).toContain("no session found");
-    });
+    withFixtureDb(
+      [{ id: "ses_other", directory: "/somewhere/else" }],
+      (dbPath) => {
+        const result = readOpencodeUsage(dbPath, "/nonexistent");
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.reason).toContain("no session found");
+      },
+    );
   });
 
   test("accepts explicit sessionId to bypass cwd lookup", () => {
-    withFixtureDb((dbPath) => {
-      const result = readOpencodeUsage(
-        dbPath,
-        "/irrelevant",
-        "ses_abc123",
-      );
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.session_id).toBe("ses_abc123");
-      expect(result.total_context).toBe(2688 + 160000);
+    withFixtureDb(
+      [
+        {
+          id: "ses_target",
+          directory: "/somewhere",
+          tokens_input: 200,
+          tokens_cache_read: 300,
+          token_total: 500,
+        },
+      ],
+      (dbPath) => {
+        const result = readOpencodeUsage(dbPath, "/irrelevant", "ses_target");
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.session_id).toBe("ses_target");
+        expect(result.total_context).toBe(500);
+      },
+    );
+  });
+
+  test("explicit sessionId returning no row reports 'session not found'", () => {
+    withFixtureDb([{ id: "ses_a", directory: "/dir" }], (dbPath) => {
+      const result = readOpencodeUsage(dbPath, "/dir", "ses_missing");
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.reason).toContain("session not found");
     });
   });
 
@@ -171,68 +227,68 @@ describe.skipIf(!sqliteAvailable)("readOpencodeUsage", () => {
     expect(result.reason).toContain("cannot open database");
   });
 
-  test("returns ok:false when session has no assistant messages", () => {
+  test("picks most recently updated session when multiple match same cwd", () => {
     withFixtureDb(
+      [
+        {
+          id: "ses_old",
+          directory: "/project",
+          tokens_input: 1000,
+          tokens_cache_read: 5000,
+          time_updated: 1_717_400_000_000,
+          token_total: 6000,
+        },
+        {
+          id: "ses_new",
+          directory: "/project",
+          tokens_input: 9000,
+          tokens_cache_read: 50_000,
+          time_updated: 1_717_500_000_000, // newer
+          token_total: 59_000,
+        },
+      ],
       (dbPath) => {
-        const result = readOpencodeUsage(dbPath, "/empty/project");
-        expect(result.ok).toBe(false);
-        if (result.ok) return;
-        expect(result.reason).toContain("no assistant messages");
-      },
-      {
-        cwd: "/empty/project",
-        sessionId: "ses_empty",
-        messages: [
-          {
-            id: "msg_user_only",
-            session_id: "ses_empty",
-            role: "user",
-            time_created: 1717500001000,
-            tokens: JSON.stringify({ input: 100, output: 0, cache: { read: 0, write: 0 } }),
-          },
-        ],
+        const result = readOpencodeUsage(dbPath, "/project");
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.session_id).toBe("ses_new");
+        expect(result.total_context).toBe(59_000);
       },
     );
   });
 
-  test("picks most recently active session when multiple match same cwd", () => {
-    if (!sqliteAvailable) return;
+  test("model column missing / unparseable yields model: null without crashing", () => {
+    withFixtureDb(
+      [
+        {
+          id: "ses_no_model",
+          directory: "/dir",
+          model: null, // no model recorded
+          tokens_input: 1,
+          tokens_cache_read: 2,
+          token_total: 3,
+        },
+        {
+          id: "ses_bad_json",
+          directory: "/dir2",
+          model: "not-json-but-a-bare-string", // tolerated as legacy id
+          tokens_input: 4,
+          tokens_cache_read: 8,
+          token_total: 12,
+        },
+      ],
+      (dbPath) => {
+        const r1 = readOpencodeUsage(dbPath, "/dir");
+        expect(r1.ok).toBe(true);
+        if (!r1.ok) return;
+        expect(r1.model).toBeNull();
 
-    const dir = mkdtempSync(join(tmpdir(), "forge-opencode-multi-"));
-    const dbPath = join(dir, "opencode.db");
-    const db = new DatabaseSync(dbPath);
-
-    try {
-      db.exec(`
-        CREATE TABLE session (id TEXT PRIMARY KEY, directory TEXT NOT NULL, created_at INTEGER NOT NULL DEFAULT 0);
-        CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, role TEXT NOT NULL, time_created INTEGER NOT NULL, tokens TEXT);
-      `);
-
-      // Two sessions for same directory
-      db.prepare("INSERT INTO session VALUES (?, ?, ?)").run("ses_old", "/project", 1717400000000);
-      db.prepare("INSERT INTO session VALUES (?, ?, ?)").run("ses_new", "/project", 1717500000000);
-
-      // Old session: assistant message at t=1000
-      db.prepare("INSERT INTO message VALUES (?, ?, ?, ?, ?)").run(
-        "msg_old", "ses_old", "assistant", 1717400001000,
-        JSON.stringify({ input: 1000, cache: { read: 5000 } }),
-      );
-      // New session: assistant message at t=2000 (more recent)
-      db.prepare("INSERT INTO message VALUES (?, ?, ?, ?, ?)").run(
-        "msg_new", "ses_new", "assistant", 1717500002000,
-        JSON.stringify({ input: 9000, cache: { read: 50000 } }),
-      );
-
-      db.close();
-
-      const result = readOpencodeUsage(dbPath, "/project");
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.session_id).toBe("ses_new");
-      expect(result.total_context).toBe(9000 + 50000);
-    } finally {
-      try { db.close(); } catch { /* already closed */ }
-      rmSync(dir, { recursive: true, force: true });
-    }
+        const r2 = readOpencodeUsage(dbPath, "/dir2");
+        expect(r2.ok).toBe(true);
+        if (!r2.ok) return;
+        // Bare string gets passed through as a best-effort id.
+        expect(r2.model).toBe("not-json-but-a-bare-string");
+      },
+    );
   });
 });
