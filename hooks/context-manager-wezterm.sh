@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Forge context-manager hook for Claude Code + WezTerm (Chain A, in-place restart).
+# Forge context-manager hook for Claude Code + WezTerm (Chain A, clear session).
 #
 # Triggered by Claude Code's Stop hook. Waits for agent idle, then sends
-# /clear via WezTerm's CLI followed by the resume command.
+# /clear via WezTerm's CLI. Claude's SessionStart hook is responsible for
+# restoring Forge workflow context after the clear.
 #
 # Usage in .claude/settings.json:
 #   "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": ".forge/hooks/context-manager-wezterm.sh" }] }]
@@ -45,9 +46,6 @@ fi
 (
   sleep "$DELAY_S"
   wezterm cli send-text --pane-id "$PANE_ID" --no-paste "/clear
-"
-  sleep 0.3
-  wezterm cli send-text --pane-id "$PANE_ID" --no-paste "/resume
 "
 ) &
 disown

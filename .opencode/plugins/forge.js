@@ -1,16 +1,19 @@
 /**
  * Forge plugin for OpenCode.ai
  *
- * Injects forge bootstrap context into the first user message of each
- * session, mirroring the approach Superpowers uses (which is the only
- * mechanism OpenCode actually honours in current builds).
+ * Responsibility:
  *
- * Skills are NOT registered through this plugin. OpenCode's documented
- * skill discovery only walks fixed locations (`.opencode/skills/`,
- * `~/.config/opencode/skills/`, `.claude/skills/`, `~/.claude/skills/`,
- * `.agents/skills/`, `~/.agents/skills/`). The forge install script
- * symlinks each skill into `~/.config/opencode/skills/<name>/` so
- * `/skills` lists them.
+ * Bootstrap injection: prepend the using-forge skill content to the first
+ *    user message of each session, so the model has the orchestration rules
+ *    loaded without the user having to ask for them.
+ *
+ * Session handoff is handled by the TUI plugin in `forge-tui.js`. The server
+ * plugin must not drive TUI commands: in real OpenCode, `session.new` command
+ * events do not create/switch sessions reliably.
+ *
+ * Skills are NOT registered here. OpenCode's documented skill discovery only
+ * walks fixed locations; the install script symlinks each forge skill into
+ * `~/.config/opencode/skills/<name>/` so `/skills` lists them.
  */
 import path from 'path';
 import fs from 'fs';
@@ -18,19 +21,21 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Strip YAML frontmatter from SKILL.md content, return body only
+// ── Bootstrap injection ────────────────────────────────────────────────────
+
 const stripFrontmatter = (content) => {
   const match = content.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
   return match ? match[1] : content;
 };
 
-// Module-level cache for bootstrap content
 let _bootstrapCache = undefined;
 
 // Stable marker so the guard works even if SKILL.md content changes
 const FORGE_BOOTSTRAP_MARKER = '<!-- forge-bootstrap-injected -->';
 
-export const ForgePlugin = async () => {
+// ── Plugin entry point ─────────────────────────────────────────────────────
+
+export const ForgePlugin = async (input) => {
   const forgeSkillsDir = path.resolve(__dirname, '../../skills');
 
   const getBootstrapContent = () => {
@@ -71,8 +76,7 @@ ${toolMapping}
 
   return {
     // Inject bootstrap into the first user message of each session.
-    // Same hook Superpowers uses; verified working with current OpenCode.
-    'experimental.chat.messages.transform': async (_input, output) => {
+    'experimental.chat.messages.transform': async (_unused, output) => {
       const bootstrap = getBootstrapContent();
       if (!bootstrap || !output.messages || !output.messages.length) return;
 
@@ -86,6 +90,6 @@ ${toolMapping}
 
       const ref = firstUser.parts[0];
       firstUser.parts.unshift({ ...ref, type: 'text', text: bootstrap });
-    }
+    },
   };
 };

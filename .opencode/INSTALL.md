@@ -16,9 +16,11 @@ script wires it into both systems in one shot:
 
 1. Clones the forge repo into `~/.config/opencode/plugins/forge/`
 2. Builds the Forge v2 CLI Runtime from `cli/`
-3. Drops a `forge.mjs` bridge file into `~/.config/opencode/plugins/` that
-   re-exports the real plugin (so the plugin loader picks it up)
-4. Creates a directory junction (Windows) or symlink (Unix) for each forge
+3. Drops `forge.mjs` and `forge-tui.mjs` bridge files into
+   `~/.config/opencode/plugins/`
+4. Merges `~/.config/opencode/tui.json` so OpenCode loads the Forge TUI
+   plugin that performs automatic session handoff
+5. Creates a directory junction (Windows) or symlink (Unix) for each forge
    skill under `~/.config/opencode/skills/<name>` (so `/skills` lists them)
 
 ## Prerequisites
@@ -113,7 +115,7 @@ already exists.
 Linux / macOS:
 
 ```bash
-rm -rf ~/.config/opencode/plugins/forge ~/.config/opencode/plugins/forge.mjs
+rm -rf ~/.config/opencode/plugins/forge ~/.config/opencode/plugins/forge.mjs ~/.config/opencode/plugins/forge-tui.mjs
 for d in ~/.config/opencode/skills/*/; do
   if [ -L "${d%/}" ] && readlink "${d%/}" | grep -q "/plugins/forge/skills/"; then
     rm -rf "${d%/}"
@@ -126,6 +128,7 @@ Windows (cmd):
 ```cmd
 rmdir /s /q "%USERPROFILE%\.config\opencode\plugins\forge"
 del "%USERPROFILE%\.config\opencode\plugins\forge.mjs"
+del "%USERPROFILE%\.config\opencode\plugins\forge-tui.mjs"
 for /d %%S in ("%USERPROFILE%\.config\opencode\skills\*") do rmdir "%%~fS" 2>nul
 ```
 
@@ -162,8 +165,11 @@ Check that both files exist:
 
 ```
 ~/.config/opencode/plugins/forge.mjs       (bridge, ~150 bytes)
+~/.config/opencode/plugins/forge-tui.mjs   (TUI bridge, ~150 bytes)
+~/.config/opencode/tui.json                (contains ./plugins/forge-tui.mjs)
 ~/.config/opencode/plugins/forge/          (cloned repo)
 ~/.config/opencode/plugins/forge/.opencode/plugins/forge.js  (real plugin)
+~/.config/opencode/plugins/forge/.opencode/plugins/forge-tui.js  (real TUI plugin)
 ```
 
 Run with logs and grep for forge:

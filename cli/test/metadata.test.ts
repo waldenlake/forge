@@ -78,4 +78,27 @@ describe("release metadata", () => {
       /call npm run build\r?\nif errorlevel 1 \(\r?\n  popd >nul\r?\n  exit \/b 1\r?\n\)/,
     );
   });
+
+  test("OpenCode installer wires both server and TUI plugins", () => {
+    const unixInstaller = readText("scripts/install-opencode.sh");
+    const windowsInstaller = readText("scripts/install-opencode.cmd");
+    const openCodeInstall = readText(".opencode/INSTALL.md");
+
+    expect(unixInstaller).toContain("forge-tui.mjs");
+    expect(unixInstaller).toContain("tui.json");
+    expect(unixInstaller).toContain("./plugins/forge-tui.mjs");
+    expect(windowsInstaller).toContain("forge-tui.mjs");
+    expect(windowsInstaller).toContain("tui.json");
+    expect(windowsInstaller).toContain("./plugins/forge-tui.mjs");
+    expect(openCodeInstall).toContain("~/.config/opencode/tui.json");
+    expect(openCodeInstall).toContain("forge-tui.mjs");
+  });
+
+  test("Claude WezTerm handoff clears context instead of opening slash resume/new flows", () => {
+    const hook = readText("hooks/context-manager-wezterm.sh");
+
+    expect(hook).toContain('send-text --pane-id "$PANE_ID" --no-paste "/clear');
+    expect(hook).not.toContain('send-text --pane-id "$PANE_ID" --no-paste "/new');
+    expect(hook).not.toContain('/resume');
+  });
 });
