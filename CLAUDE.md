@@ -91,7 +91,7 @@ Skills in `skills/<name>/SKILL.md` are instruction files consumed by Claude Code
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **forge** (2184 symbols, 4010 relationships, 166 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **forge** (2349 symbols, 4420 relationships, 200 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
